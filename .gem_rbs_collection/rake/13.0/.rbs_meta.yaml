@@ -1,0 +1,9 @@
+---
+name: rake
+version: '13.0'
+source:
+  type: git
+  name: ruby/gem_rbs_collection
+  revision: 95238acb45d456d452bd791d9c72909adb4fcf96
+  remote: https://github.com/ruby/gem_rbs_collection.git
+  repo_dir: gems
