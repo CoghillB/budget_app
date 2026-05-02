@@ -25,25 +25,47 @@
 
 * { box-sizing: border-box; }
 
+html {
+  /* Solid base color so overscroll / rubber-band never shows white. */
+  background-color: var(--bg-0);
+}
+
 html, body {
   margin: 0;
   padding: 0;
-  min-height: 100%;
+  min-height: 100vh;
   font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   color: var(--ink);
+  overflow-x: hidden;
+  overscroll-behavior: none;
+}
+
+body {
+  /* Fallback in case the fixed gradient layer fails to paint. */
+  background-color: var(--bg-0);
+}
+
+/* Fixed gradient layer — using a dedicated pseudo-element instead of
+   `background-attachment: fixed` on body avoids the per-scroll repaint
+   that caused a white flash at the bottom on slower frames. */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
   background: radial-gradient(1200px 800px at 80% -10%, #2a0e6e 0%, transparent 60%),
               radial-gradient(1000px 700px at -10% 110%, #003d66 0%, transparent 55%),
               linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 50%, var(--bg-2) 100%);
-  background-attachment: fixed;
-  overflow-x: hidden;
 }
 
-body::before {
+/* Scanline overlay (was previously on body::before). */
+body::after {
   content: '';
-  position: fixed; inset: 0;
+  position: fixed;
+  inset: 0;
   pointer-events: none;
-  background:
-    repeating-linear-gradient(0deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px);
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px);
   mix-blend-mode: overlay;
   opacity: 0.35;
   z-index: 0;
