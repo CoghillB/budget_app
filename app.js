@@ -1,11 +1,19 @@
 /* ===========================================================
    Budget Quest — vanilla JS, localStorage-backed budget tracker
+   with optional Firebase sync for cross-device household sharing.
    =========================================================== */
+
+import * as sync from './sync.js';
+import { firebaseConfig } from './firebase-config.js';
 
 (() => {
   'use strict';
 
   const STORAGE_KEY = 'budget-quest:v1';
+  const HOUSEHOLD_KEY = 'budget-quest:household';
+
+  const HH_ADJ = ['mint', 'cobalt', 'crimson', 'amber', 'lilac', 'jade', 'frost', 'velvet', 'neon', 'solar', 'plum', 'coral', 'opal', 'rose', 'sage'];
+  const HH_NOUN = ['fox', 'tiger', 'otter', 'finch', 'orca', 'lynx', 'wren', 'koi', 'badger', 'falcon', 'panda', 'moth', 'crane', 'sloth', 'puma'];
 
   const EMOJI_OPTIONS = ['🛒', '🍔', '🏠', '🚗', '🎮', '✈️', '👕', '💊', '📚', '💡', '🎬', '☕', '🐕', '🎁', '💼', '🏋️', '✂️', '🎵', '🍷', '📱'];
   const COLOR_OPTIONS = ['#7c5cff', '#00e0ff', '#ff5cf3', '#2bd99f', '#ffb648', '#ff4d6d', '#ff7a3c', '#5cffb1', '#5c8aff', '#c95cff'];
@@ -33,6 +41,8 @@
   let activeSubCategoryId = null;     // for sub-budget modal
   let viewingMonth = null;            // when viewing historical (read-only)
   let confirmAction = null;
+  let syncState = 'local';            // local | connecting | synced | syncing | offline | error
+  let suspendPush = false;            // true while applying a remote update
 
   // ---------- Storage ----------
   function load() {
@@ -53,6 +63,9 @@
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (e) { console.warn('Failed to save', e); }
+    if (!suspendPush && sync.getCurrentCode()) {
+      sync.pushLocal(data);
+    }
   }
 
   // ---------- Helpers ----------
@@ -725,6 +738,162 @@
     tick();
   }
 
+  // ---------- Sync ----------
+  function generateHouseholdCode() {
+    const a = HH_ADJ[Math.floor(Math.random() * HH_ADJ.length)];
+    const n = HH_NOUN[Math.floor(Math.random() * HH_NOUN.length)];
+    const num = Math.floor(Math.random() * 90 + 10);
+    return `${a}-${n}-${num}`;
+  }
+
+  function setSyncStatus(s) {
+    syncState = s;
+    const el = document.getElementById('sync-indicator');
+    if (!el) return;
+    el.classList.remove('local', 'connecting', 'syncing', 'synced', 'offline', 'error');
+    el.classList.add(s);
+    const labels = {
+      local: 'Local',
+      connecting: 'Connecting…',
+      syncing: 'Syncing…',
+      synced: 'Synced',
+      offline: 'Offline',
+      error: 'Sync error'
+    };
+    el.querySelector('.sync-label').textContent = labels[s] || s;
+    const code = sync.getCurrentCode();
+    el.title = code ? `Household: ${code}` : 'Set up household sync';
+  }
+
+  async function startSync() {
+    if (!sync.isConfigured(firebaseConfig)) {
+      setSyncStatus('local');
+      return;
+    }
+    try {
+      await sync.init(firebaseConfig);
+      sync.onStatus(setSyncStatus);
+      const savedCode = localStorage.getItem(HOUSEHOLD_KEY);
+      if (savedCode && sync.isValidCode(savedCode)) {
+        await joinHousehold(savedCode, /* silent */ true);
+      } else {
+        // First run: prompt for household
+        openHouseholdModal();
+      }
+    } catch (e) {
+      console.warn('Sync init failed', e);
+      setSyncStatus('error');
+      toast('Could not start sync. Working offline.', 'error');
+    }
+  }
+
+  async function joinHousehold(code, silent = false) {
+    code = (code || '').trim().toLowerCase();
+    if (!sync.isValidCode(code)) {
+      toast('Code must be 6+ characters (letters, numbers, dashes).', 'error');
+      return false;
+    }
+    setSyncStatus('connecting');
+    try {
+      const remote = await sync.joinHousehold(code, applyRemote);
+      localStorage.setItem(HOUSEHOLD_KEY, code);
+      if (remote) {
+        suspendPush = true;
+        data = remote;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+        suspendPush = false;
+        render();
+        if (!silent) toast(`Joined household "${code}" 🤝`, 'success');
+      } else {
+        // New / empty household — push local state to seed it
+        sync.pushLocal(data);
+        if (!silent) toast(`Household "${code}" created. Share the code!`, 'success');
+      }
+      setSyncStatus('synced');
+      return true;
+    } catch (e) {
+      console.warn('joinHousehold failed', e);
+      setSyncStatus('error');
+      toast('Could not join household. Try again.', 'error');
+      return false;
+    }
+  }
+
+  function applyRemote(remoteData) {
+    if (!remoteData) return;
+    suspendPush = true;
+    data = remoteData;
+    if (viewingMonth && !data.months[viewingMonth]) viewingMonth = null;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    suspendPush = false;
+    render();
+    toast('Updated from your household 🔄', 'info');
+  }
+
+  function disconnectSync() {
+    sync.disconnect();
+    localStorage.removeItem(HOUSEHOLD_KEY);
+    setSyncStatus('local');
+    toast('Disconnected. Using local-only mode.', 'info');
+  }
+
+  // ---------- Household & sync modals ----------
+  function openHouseholdModal() {
+    if (!sync.isConfigured(firebaseConfig)) {
+      toast('Sync isn\'t set up. See README for Firebase steps.', 'info');
+      return;
+    }
+    const modal = document.getElementById('household-modal');
+    // Reset to "Create" tab
+    modal.querySelectorAll('.hh-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === 'create'));
+    modal.querySelectorAll('.hh-pane').forEach(p => p.hidden = p.dataset.pane !== 'create');
+    document.getElementById('hh-suggested-code').textContent = generateHouseholdCode();
+    document.getElementById('hh-join-code').value = '';
+    modal.hidden = false;
+  }
+
+  function openSyncModal() {
+    if (!sync.isConfigured(firebaseConfig)) {
+      // Bring up the setup pointer
+      const body = document.getElementById('sync-status-body');
+      body.innerHTML = `
+        <p class="muted">Sync isn't configured yet. Open <code>firebase-config.js</code> and follow the steps in <code>README.md</code>.</p>
+      `;
+      document.getElementById('sync-disconnect-btn').style.display = 'none';
+      document.getElementById('sync-change-btn').style.display = 'none';
+      document.getElementById('sync-modal').hidden = false;
+      return;
+    }
+    const code = sync.getCurrentCode();
+    const body = document.getElementById('sync-status-body');
+    if (code) {
+      body.innerHTML = `
+        <div class="sync-status-row">
+          <span class="label">Status</span>
+          <span class="value" id="sync-status-text">${syncState}</span>
+        </div>
+        <div class="sync-status-row">
+          <span class="label">Household</span>
+          <span class="value"><code id="sync-current-code">${code}</code></span>
+        </div>
+        <div class="sync-status-row">
+          <button type="button" class="ghost-btn" id="sync-copy-btn" style="width:100%;">📋 Copy code to share</button>
+        </div>
+      `;
+      document.getElementById('sync-disconnect-btn').style.display = '';
+      document.getElementById('sync-change-btn').style.display = '';
+      document.getElementById('sync-copy-btn').addEventListener('click', () => {
+        navigator.clipboard.writeText(code).then(() => toast('Code copied 📋', 'success'));
+      });
+    } else {
+      body.innerHTML = `<p class="muted">Not connected to a household yet.</p>`;
+      document.getElementById('sync-disconnect-btn').style.display = 'none';
+      document.getElementById('sync-change-btn').textContent = 'Set up sync';
+      document.getElementById('sync-change-btn').style.display = '';
+    }
+    document.getElementById('sync-modal').hidden = false;
+  }
+
   // ---------- Wire up events ----------
   function bindEvents() {
     // Month switcher
@@ -818,6 +987,62 @@
       confirmAction = null;
       closeAllModals();
     });
+
+    // Sync indicator click
+    document.getElementById('sync-indicator').addEventListener('click', openSyncModal);
+
+    // Household modal: tab switch
+    document.querySelectorAll('#household-modal .hh-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const target = tab.dataset.tab;
+        document.querySelectorAll('#household-modal .hh-tab').forEach(t => t.classList.toggle('active', t === tab));
+        document.querySelectorAll('#household-modal .hh-pane').forEach(p => p.hidden = p.dataset.pane !== target);
+      });
+    });
+
+    // Household modal: regen code
+    document.getElementById('hh-regen').addEventListener('click', () => {
+      document.getElementById('hh-suggested-code').textContent = generateHouseholdCode();
+    });
+
+    // Household modal: copy code
+    document.getElementById('hh-copy').addEventListener('click', () => {
+      const code = document.getElementById('hh-suggested-code').textContent;
+      navigator.clipboard.writeText(code).then(() => toast('Code copied 📋', 'success'));
+    });
+
+    // Household modal: create
+    document.getElementById('hh-create-btn').addEventListener('click', async () => {
+      const code = document.getElementById('hh-suggested-code').textContent;
+      const ok = await joinHousehold(code);
+      if (ok) closeAllModals();
+    });
+
+    // Household modal: join
+    document.getElementById('hh-join-btn').addEventListener('click', async () => {
+      const code = document.getElementById('hh-join-code').value;
+      const ok = await joinHousehold(code);
+      if (ok) closeAllModals();
+    });
+    document.getElementById('hh-join-code').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') document.getElementById('hh-join-btn').click();
+    });
+
+    // Household modal: skip
+    document.getElementById('hh-skip').addEventListener('click', () => {
+      setSyncStatus('local');
+      closeAllModals();
+    });
+
+    // Sync modal actions
+    document.getElementById('sync-disconnect-btn').addEventListener('click', () => {
+      closeAllModals();
+      confirmDelete('Disconnect from household?', 'Your local data stays. You can rejoin any time.', disconnectSync);
+    });
+    document.getElementById('sync-change-btn').addEventListener('click', () => {
+      closeAllModals();
+      openHouseholdModal();
+    });
   }
 
   // ---------- Boot ----------
@@ -825,6 +1050,8 @@
     bindEvents();
     initBackground();
     render();
+    setSyncStatus('local');
+    startSync();
   }
 
   if (document.readyState === 'loading') {

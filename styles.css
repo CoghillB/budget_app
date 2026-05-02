@@ -823,6 +823,112 @@ main {
   }
 }
 
+/* ---------- Sync indicator ---------- */
+.sync-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--glass);
+  color: var(--ink-dim);
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.sync-indicator:hover { background: var(--glass-strong); color: var(--ink); }
+.sync-indicator .sync-dot {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 0 currentColor;
+}
+.sync-indicator.synced     .sync-dot { background: var(--good); animation: pulse-dot 2.4s ease-in-out infinite; }
+.sync-indicator.syncing    .sync-dot { background: var(--accent-2); animation: pulse-dot 0.9s ease-in-out infinite; }
+.sync-indicator.connecting .sync-dot { background: var(--warn); animation: pulse-dot 1.2s ease-in-out infinite; }
+.sync-indicator.offline    .sync-dot { background: var(--muted); }
+.sync-indicator.error      .sync-dot { background: var(--bad); animation: pulse-dot 0.7s ease-in-out infinite; }
+.sync-indicator.local      .sync-dot { background: var(--muted); }
+
+@keyframes pulse-dot {
+  0%, 100% { box-shadow: 0 0 0 0 currentColor; opacity: 1; }
+  50% { box-shadow: 0 0 0 4px transparent; opacity: 0.6; }
+}
+
+/* ---------- Household modal ---------- */
+.hh-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(255,255,255,0.04);
+  border-radius: 12px;
+  margin-bottom: 18px;
+}
+.hh-tab {
+  flex: 1;
+  padding: 8px 12px;
+  background: transparent;
+  border: none;
+  border-radius: 8px;
+  color: var(--ink-dim);
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.hh-tab:hover { color: var(--ink); }
+.hh-tab.active {
+  background: linear-gradient(135deg, var(--accent), var(--accent-3));
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(124, 92, 255, 0.4);
+}
+
+.hh-code-display {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  padding: 12px 14px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.hh-code-display code {
+  flex: 1;
+  font-family: 'SF Mono', 'Monaco', Consolas, monospace;
+  font-size: 16px;
+  letter-spacing: 1px;
+  color: var(--accent-2);
+  font-weight: 600;
+}
+.hh-code-display .icon-btn { width: 32px; height: 32px; font-size: 16px; }
+.hh-code-display .ghost-btn { padding: 6px 12px; font-size: 12px; }
+
+#hh-create-btn, #hh-join-btn { width: 100%; margin-top: 8px; }
+
+.sync-status-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+.sync-status-row:last-child { border-bottom: none; }
+.sync-status-row .label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.5px; }
+.sync-status-row .value { font-weight: 600; }
+.sync-status-row code {
+  font-family: 'SF Mono', Monaco, Consolas, monospace;
+  background: rgba(255,255,255,0.05);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-size: 13px;
+  color: var(--accent-2);
+}
+
 /* ---------- Responsive ---------- */
 @media (max-width: 800px) {
   .topbar { flex-direction: column; align-items: stretch; gap: 12px; padding: 14px; }
