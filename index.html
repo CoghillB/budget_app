@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Budget Quest — Track. Slay. Save.</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%92%B0%3C/text%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <canvas id="bg-canvas" aria-hidden="true"></canvas>
+  <div id="confetti-layer" aria-hidden="true"></div>
+
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">💰</span>
+      <div class="brand-text">
+        <h1>Budget Quest</h1>
+        <p class="tagline">Level up your money</p>
+      </div>
+    </div>
+    <div class="month-switcher">
+      <button id="prev-month" class="icon-btn" title="Previous month">‹</button>
+      <div class="month-label">
+        <span id="month-name">—</span>
+        <small id="month-status"></small>
+      </div>
+      <button id="next-month" class="icon-btn" title="Next month">›</button>
+      <button id="reset-month" class="ghost-btn" title="Start a new month">↻ New Month</button>
+      <button id="history-btn" class="ghost-btn" title="View previous months">📜 History</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Stats Dashboard -->
+    <section class="dashboard">
+      <div class="stat-card stat-income">
+        <div class="stat-icon">💵</div>
+        <div class="stat-body">
+          <span class="stat-label">Income</span>
+          <span class="stat-value" id="stat-income">$0</span>
+        </div>
+      </div>
+      <div class="stat-card stat-budget">
+        <div class="stat-icon">🎯</div>
+        <div class="stat-body">
+          <span class="stat-label">Total Budget</span>
+          <span class="stat-value" id="stat-budget">$0</span>
+        </div>
+      </div>
+      <div class="stat-card stat-spent">
+        <div class="stat-icon">🔥</div>
+        <div class="stat-body">
+          <span class="stat-label">Spent</span>
+          <span class="stat-value" id="stat-spent">$0</span>
+        </div>
+      </div>
+      <div class="stat-card stat-remaining">
+        <div class="stat-icon">✨</div>
+        <div class="stat-body">
+          <span class="stat-label">Remaining</span>
+          <span class="stat-value" id="stat-remaining">$0</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Income Section -->
+    <section class="section income-section">
+      <div class="section-header">
+        <h2>💵 Income</h2>
+        <button id="add-income-btn" class="primary-btn">+ Add Income</button>
+      </div>
+      <div id="income-list" class="income-list"></div>
+    </section>
+
+    <!-- Categories Section -->
+    <section class="section categories-section">
+      <div class="section-header">
+        <h2>🎯 Budget Categories</h2>
+        <button id="add-category-btn" class="primary-btn">+ Add Category</button>
+      </div>
+      <div id="categories-grid" class="categories-grid"></div>
+      <div id="empty-state" class="empty-state" hidden>
+        <div class="empty-art">🚀</div>
+        <h3>No categories yet</h3>
+        <p>Create your first budget category to begin your quest.</p>
+        <button class="primary-btn" onclick="document.getElementById('add-category-btn').click()">+ Add Category</button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Modal: Add/Edit Category -->
+  <div class="modal" id="category-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <button class="modal-close" data-close>×</button>
+      <h3 id="category-modal-title">New Category</h3>
+      <form id="category-form">
+        <label>
+          Name
+          <input type="text" id="cat-name" required maxlength="40" placeholder="e.g. Food, Fun, Rent" />
+        </label>
+        <label>
+          Monthly limit ($)
+          <input type="number" id="cat-limit" required min="0" step="0.01" placeholder="500" />
+        </label>
+        <label>
+          Icon
+          <div class="emoji-grid" id="emoji-grid"></div>
+          <input type="hidden" id="cat-icon" value="🛒" />
+        </label>
+        <label>
+          Color
+          <div class="color-grid" id="color-grid"></div>
+          <input type="hidden" id="cat-color" value="#7c5cff" />
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="ghost-btn" data-close>Cancel</button>
+          <button type="submit" class="primary-btn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Expense -->
+  <div class="modal" id="expense-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <button class="modal-close" data-close>×</button>
+      <h3 id="expense-modal-title">Add Expense</h3>
+      <form id="expense-form">
+        <label>
+          Description
+          <input type="text" id="exp-name" required maxlength="60" placeholder="e.g. Groceries" />
+        </label>
+        <label>
+          Amount ($)
+          <input type="number" id="exp-amount" required min="0" step="0.01" placeholder="0.00" />
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="ghost-btn" data-close>Cancel</button>
+          <button type="submit" class="primary-btn">Add</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Income -->
+  <div class="modal" id="income-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <button class="modal-close" data-close>×</button>
+      <h3>Add Income</h3>
+      <form id="income-form">
+        <label>
+          Source
+          <input type="text" id="inc-name" required maxlength="60" placeholder="e.g. Paycheck, Freelance" />
+        </label>
+        <label>
+          Amount ($)
+          <input type="number" id="inc-amount" required min="0" step="0.01" placeholder="0.00" />
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="ghost-btn" data-close>Cancel</button>
+          <button type="submit" class="primary-btn">Add</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Add Sub-Budget -->
+  <div class="modal" id="sub-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <button class="modal-close" data-close>×</button>
+      <h3>New Sub-Budget</h3>
+      <form id="sub-form">
+        <label>
+          Name
+          <input type="text" id="sub-name" required maxlength="40" placeholder="e.g. Groceries, Eating Out" />
+        </label>
+        <label>
+          Limit ($)
+          <input type="number" id="sub-limit" required min="0" step="0.01" placeholder="200" />
+        </label>
+        <div class="modal-actions">
+          <button type="button" class="ghost-btn" data-close>Cancel</button>
+          <button type="submit" class="primary-btn">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: History -->
+  <div class="modal" id="history-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card modal-wide">
+      <button class="modal-close" data-close>×</button>
+      <h3>📜 Month History</h3>
+      <p class="muted">Tap a month to view its snapshot.</p>
+      <div id="history-list" class="history-list"></div>
+    </div>
+  </div>
+
+  <!-- Modal: Confirm -->
+  <div class="modal" id="confirm-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card modal-narrow">
+      <h3 id="confirm-title">Are you sure?</h3>
+      <p id="confirm-message" class="muted"></p>
+      <div class="modal-actions">
+        <button type="button" class="ghost-btn" data-close>Cancel</button>
+        <button type="button" id="confirm-ok" class="danger-btn">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
