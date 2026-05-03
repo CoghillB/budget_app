@@ -28,21 +28,43 @@ import { firebaseConfig } from './firebase-config.js';
    *       income: [{id, name, amount}],
    *       categories: [{
    *         id, name, limit, color, icon,
-   *         expenses: [{id, name, amount}],
-   *         subs: [{id, name, limit, expenses: [...]}]
+   *         expenses: [{id, name, amount}]
    *       }]
    *     }
    *   }
    * }
    */
-  let data = load();
+  let data = migrate(load());
   let editingCategoryId = null;       // when set, category modal is editing
-  let activeExpenseTarget = null;     // {categoryId, subId|null}
-  let activeSubCategoryId = null;     // for sub-budget modal
+  let activeExpenseTarget = null;     // {categoryId}
   let viewingMonth = null;            // when viewing historical (read-only)
   let confirmAction = null;
   let syncState = 'local';            // local | connecting | synced | syncing | offline | error
   let suspendPush = false;            // true while applying a remote update
+
+  /**
+   * One-time migration: legacy categories may have a `subs` array with
+   * their own expenses. Flatten those into the parent's expenses and drop
+   * the subs field so existing users don't lose data.
+   */
+  function migrate(d) {
+    if (!d || !d.months) return d;
+    for (const key of Object.keys(d.months)) {
+      const m = d.months[key];
+      for (const cat of (m.categories || [])) {
+        if (Array.isArray(cat.subs) && cat.subs.length) {
+          cat.expenses = cat.expenses || [];
+          for (const sub of cat.subs) {
+            for (const e of (sub.expenses || [])) {
+              cat.expenses.push({ id: uid(), name: `${sub.name}: ${e.name}`, amount: e.amount });
+            }
+          }
+        }
+        delete cat.subs;
+      }
+    }
+    return d;
+  }
 
   // ---------- Storage ----------
   function load() {
@@ -105,15 +127,7 @@ import { firebaseConfig } from './firebase-config.js';
   }
 
   function categorySpent(cat) {
-    let total = (cat.expenses || []).reduce((s, e) => s + (+e.amount || 0), 0);
-    (cat.subs || []).forEach(sub => {
-      total += (sub.expenses || []).reduce((s, e) => s + (+e.amount || 0), 0);
-    });
-    return total;
-  }
-
-  function subSpent(sub) {
-    return (sub.expenses || []).reduce((s, e) => s + (+e.amount || 0), 0);
+    return (cat.expenses || []).reduce((s, e) => s + (+e.amount || 0), 0);
   }
 
   function totalIncome(m = getMonth()) {
@@ -263,35 +277,18 @@ import { firebaseConfig } from './firebase-config.js';
           ${over ? `<span class="over-tag">OVER ${fmt(spent - limit)}</span>` : ''}
         </span>
       </div>
-      <div class="subs-container"></div>
     `;
 
     card.querySelector('.cat-icon').textContent = cat.icon || '🛒';
     card.querySelector('.cat-name').textContent = cat.name;
     card.querySelector('.cat-amounts').textContent = `${fmt(spent)} of ${fmt(limit)}`;
 
-    // Sub-budgets
-    const subsContainer = card.querySelector('.subs-container');
-    if ((cat.subs && cat.subs.length) || !ro) {
-      const subs = document.createElement('div');
-      subs.className = 'subs';
-      (cat.subs || []).forEach(sub => subs.appendChild(renderSub(cat, sub)));
-      if (!ro) {
-        const add = document.createElement('button');
-        add.className = 'cat-add-sub';
-        add.textContent = '+ Add Sub-Budget';
-        add.addEventListener('click', () => openSubModal(cat.id));
-        subs.appendChild(add);
-      }
-      subsContainer.appendChild(subs);
-    }
-
-    // Recent direct expenses (chips)
-    const direct = (cat.expenses || []).slice(-3).reverse();
-    if (direct.length) {
+    // Recent expenses (chips)
+    const recentExpenses = (cat.expenses || []).slice(-3).reverse();
+    if (recentExpenses.length) {
       const recent = document.createElement('div');
       recent.className = 'recent';
-      direct.forEach(e => {
+      recentExpenses.forEach(e => {
         const chip = document.createElement('span');
         chip.className = 'chip';
         const nameSpan = document.createElement('span');
@@ -309,53 +306,13 @@ import { firebaseConfig } from './firebase-config.js';
     card.querySelectorAll('.cat-actions button').forEach(btn => {
       btn.addEventListener('click', () => {
         const act = btn.dataset.act;
-        if (act === 'add-expense') openExpenseModal(cat.id, null);
+        if (act === 'add-expense') openExpenseModal(cat.id);
         else if (act === 'edit') openCategoryModal(cat.id);
-        else if (act === 'delete') confirmDelete(`Delete "${cat.name}"?`, 'All expenses & sub-budgets in this category will be removed.', () => deleteCategory(cat.id));
+        else if (act === 'delete') confirmDelete(`Delete "${cat.name}"?`, 'All its expenses will be removed too.', () => deleteCategory(cat.id));
       });
     });
 
     return card;
-  }
-
-  function renderSub(cat, sub) {
-    const spent = subSpent(sub);
-    const limit = +sub.limit || 0;
-    const pct = limit > 0 ? (spent / limit) * 100 : 0;
-    const over = spent > limit && limit > 0;
-    const warn = !over && pct >= 80;
-
-    const el = document.createElement('div');
-    el.className = 'sub';
-    const ro = isReadOnly();
-    el.innerHTML = `
-      <div class="sub-head">
-        <div>
-          <div class="sub-name"></div>
-          <div class="sub-amounts"></div>
-        </div>
-        <div class="sub-actions">
-          ${ro ? '' : `
-            <button data-act="add">+ exp</button>
-            <button data-act="del">×</button>
-          `}
-        </div>
-      </div>
-      <div class="bar ${over ? 'over' : warn ? 'warn' : ''}">
-        <div class="bar-fill" style="width: ${Math.min(pct, 100)}%"></div>
-      </div>
-    `;
-    el.querySelector('.sub-name').textContent = sub.name;
-    el.querySelector('.sub-amounts').textContent =
-      `${fmt(spent)} / ${fmt(limit)} · ${Math.round(pct)}%${over ? ' · OVER ' + fmt(spent - limit) : ''}`;
-
-    el.querySelectorAll('.sub-actions button').forEach(b => {
-      b.addEventListener('click', () => {
-        if (b.dataset.act === 'add') openExpenseModal(cat.id, sub.id);
-        else if (b.dataset.act === 'del') confirmDelete(`Delete sub-budget "${sub.name}"?`, 'Its expenses will be removed.', () => deleteSub(cat.id, sub.id));
-      });
-    });
-    return el;
   }
 
   // ---------- Mutations ----------
@@ -382,7 +339,7 @@ import { firebaseConfig } from './firebase-config.js';
     const m = getMonth();
     m.categories.push({
       id: uid(), name, limit: +limit, color, icon,
-      expenses: [], subs: []
+      expenses: []
     });
     save();
     render();
@@ -407,21 +364,13 @@ import { firebaseConfig } from './firebase-config.js';
     if (cat) toast(`Removed "${cat.name}"`, 'info');
   }
 
-  function addExpense(categoryId, subId, name, amount) {
+  function addExpense(categoryId, name, amount) {
     if (isReadOnly()) return;
     const m = getMonth();
     const cat = m.categories.find(c => c.id === categoryId);
     if (!cat) return;
-    const expense = { id: uid(), name, amount: +amount };
-    if (subId) {
-      const sub = (cat.subs || []).find(s => s.id === subId);
-      if (!sub) return;
-      sub.expenses = sub.expenses || [];
-      sub.expenses.push(expense);
-    } else {
-      cat.expenses = cat.expenses || [];
-      cat.expenses.push(expense);
-    }
+    cat.expenses = cat.expenses || [];
+    cat.expenses.push({ id: uid(), name, amount: +amount });
     save();
     render();
 
@@ -434,26 +383,6 @@ import { firebaseConfig } from './firebase-config.js';
     } else if (limit > 0 && spent / limit >= 0.8) {
       toast(`Watch out — "${cat.name}" at ${Math.round(spent / limit * 100)}%`, 'info');
     }
-  }
-
-  function addSub(categoryId, name, limit) {
-    if (isReadOnly()) return;
-    const m = getMonth();
-    const cat = m.categories.find(c => c.id === categoryId);
-    if (!cat) return;
-    cat.subs = cat.subs || [];
-    cat.subs.push({ id: uid(), name, limit: +limit, expenses: [] });
-    save();
-    render();
-  }
-
-  function deleteSub(categoryId, subId) {
-    const m = getMonth();
-    const cat = m.categories.find(c => c.id === categoryId);
-    if (!cat) return;
-    cat.subs = (cat.subs || []).filter(s => s.id !== subId);
-    save();
-    render();
   }
 
   function startNewMonth() {
@@ -480,13 +409,7 @@ import { firebaseConfig } from './firebase-config.js';
       limit: c.limit,
       color: c.color,
       icon: c.icon,
-      expenses: [],
-      subs: (c.subs || []).map(s => ({
-        id: uid(),
-        name: s.name,
-        limit: s.limit,
-        expenses: []
-      }))
+      expenses: []
     }));
 
     data.months[key] = { income: [], categories: carriedCategories };
@@ -563,31 +486,17 @@ import { firebaseConfig } from './firebase-config.js';
     });
   }
 
-  function openExpenseModal(categoryId, subId) {
+  function openExpenseModal(categoryId) {
     if (isReadOnly()) return;
-    activeExpenseTarget = { categoryId, subId };
+    activeExpenseTarget = { categoryId };
     const modal = document.getElementById('expense-modal');
     const title = document.getElementById('expense-modal-title');
     const cat = getMonth().categories.find(c => c.id === categoryId);
-    if (subId) {
-      const sub = cat.subs.find(s => s.id === subId);
-      title.textContent = `Add to ${cat.name} › ${sub.name}`;
-    } else {
-      title.textContent = `Add to ${cat.name}`;
-    }
+    title.textContent = `Add to ${cat.name}`;
     document.getElementById('exp-name').value = '';
     document.getElementById('exp-amount').value = '';
     modal.hidden = false;
     setTimeout(() => document.getElementById('exp-name').focus(), 50);
-  }
-
-  function openSubModal(categoryId) {
-    if (isReadOnly()) return;
-    activeSubCategoryId = categoryId;
-    document.getElementById('sub-name').value = '';
-    document.getElementById('sub-limit').value = '';
-    document.getElementById('sub-modal').hidden = false;
-    setTimeout(() => document.getElementById('sub-name').focus(), 50);
   }
 
   function openIncomeModal() {
@@ -895,7 +804,7 @@ import { firebaseConfig } from './firebase-config.js';
       const name = document.getElementById('exp-name').value.trim();
       const amount = +document.getElementById('exp-amount').value;
       if (!name || amount < 0 || !activeExpenseTarget) return;
-      addExpense(activeExpenseTarget.categoryId, activeExpenseTarget.subId, name, amount);
+      addExpense(activeExpenseTarget.categoryId, name, amount);
       activeExpenseTarget = null;
       closeAllModals();
     });
@@ -907,17 +816,6 @@ import { firebaseConfig } from './firebase-config.js';
       const amount = +document.getElementById('inc-amount').value;
       if (!name || amount < 0) return;
       addIncome(name, amount);
-      closeAllModals();
-    });
-
-    // Sub-budget form
-    document.getElementById('sub-form').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const name = document.getElementById('sub-name').value.trim();
-      const limit = +document.getElementById('sub-limit').value;
-      if (!name || limit < 0 || !activeSubCategoryId) return;
-      addSub(activeSubCategoryId, name, limit);
-      activeSubCategoryId = null;
       closeAllModals();
     });
 
