@@ -5,9 +5,8 @@ Optional Firebase sync lets you and your partner share the same budget across de
 
 ## Features
 
-- **Budget categories** with animated progress bars that glow as you spend.
+- **Budget categories** with animated progress bars that fill as you spend.
 - **Over-budget alerts** — bars pulse red, the page shakes, and a warning toast pops up.
-- **Sub-budgets** inside each category for finer tracking (e.g. "Food → Groceries / Eating Out").
 - **Income tracker** with confetti when you add some.
 - **Monthly reset** — start a new month and your categories carry over with $0 spent.
 - **History** — flip back through previous months as read-only snapshots.
