@@ -152,15 +152,12 @@ import { firebaseConfig } from './firebase-config.js';
 
   function renderHeader() {
     const key = activeMonth();
+    const isCurrent = key === data.currentMonth;
     document.getElementById('month-name').textContent = monthLabel(key);
     const status = document.getElementById('month-status');
-    if (key === data.currentMonth) {
-      status.textContent = 'Active';
-    } else {
-      status.textContent = 'Viewing';
-    }
+    status.textContent = isCurrent ? 'Active' : 'Viewing';
+    status.classList.toggle('viewing', !isCurrent);
 
-    const isCurrent = key === data.currentMonth;
     document.getElementById('reset-month').hidden = !isCurrent;
     document.getElementById('unlock-month').hidden = isCurrent;
     document.getElementById('clear-month').hidden = isCurrent;
