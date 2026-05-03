@@ -160,9 +160,10 @@ import { firebaseConfig } from './firebase-config.js';
       status.textContent = 'Viewing';
     }
 
-    const resetBtn = document.getElementById('reset-month');
     const isCurrent = key === data.currentMonth;
-    resetBtn.style.display = isCurrent ? '' : 'none';
+    document.getElementById('reset-month').hidden = !isCurrent;
+    document.getElementById('unlock-month').hidden = isCurrent;
+    document.getElementById('delete-month').hidden = isCurrent;
 
     // Disable add buttons when read-only
     const ro = isReadOnly();
@@ -419,6 +420,36 @@ import { firebaseConfig } from './firebase-config.js';
     render();
     fireConfetti();
     toast(`New month started: ${monthLabel(key)} 🚀`, 'success');
+  }
+
+  /**
+   * Make the currently-viewed historical month active again.
+   * The previously-active month becomes a regular historical entry — it isn't
+   * deleted, so nothing is destroyed by mistake. The user can then delete it
+   * separately if it was an empty/accidental month.
+   */
+  function reactivateMonth() {
+    if (!viewingMonth || viewingMonth === data.currentMonth) return;
+    const newActive = viewingMonth;
+    data.currentMonth = newActive;
+    viewingMonth = null;
+    save();
+    render();
+    toast(`${monthLabel(newActive)} is active again 🔓`, 'success');
+  }
+
+  /**
+   * Delete the currently-viewed historical month entirely. The active month
+   * can never be deleted — that would wipe live data without warning.
+   */
+  function deleteHistoricalMonth() {
+    if (!viewingMonth || viewingMonth === data.currentMonth) return;
+    const key = viewingMonth;
+    delete data.months[key];
+    viewingMonth = null;
+    save();
+    render();
+    toast(`Deleted ${monthLabel(key)}`, 'info');
   }
 
   // ---------- Modals ----------
@@ -766,6 +797,12 @@ import { firebaseConfig } from './firebase-config.js';
     });
     document.getElementById('reset-month').addEventListener('click', () => {
       confirmDelete('Start a new month?', 'This locks in the current month as history and starts fresh. Your categories carry over with $0 spent.', startNewMonth);
+    });
+    document.getElementById('unlock-month').addEventListener('click', reactivateMonth);
+    document.getElementById('delete-month').addEventListener('click', () => {
+      if (!viewingMonth || viewingMonth === data.currentMonth) return;
+      const label = monthLabel(viewingMonth);
+      confirmDelete(`Delete ${label}?`, 'This permanently removes this month’s record. The active month is unaffected.', deleteHistoricalMonth);
     });
     document.getElementById('history-btn').addEventListener('click', openHistoryModal);
 
