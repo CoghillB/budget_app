@@ -8,7 +8,6 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <canvas id="bg-canvas" aria-hidden="true"></canvas>
   <div id="confetti-layer" aria-hidden="true"></div>
 
   <header class="topbar">
@@ -28,6 +27,10 @@
       <button id="next-month" class="icon-btn" title="Next month">›</button>
       <button id="reset-month" class="ghost-btn" title="Start a new month">↻ New Month</button>
       <button id="history-btn" class="ghost-btn" title="View previous months">📜 History</button>
+      <button id="sync-indicator" class="sync-indicator local" title="Sync settings">
+        <span class="sync-dot"></span>
+        <span class="sync-label">Local</span>
+      </button>
     </div>
   </header>
 
@@ -215,9 +218,65 @@
     </div>
   </div>
 
+  <!-- Modal: Household sync (first-run + change household) -->
+  <div class="modal" id="household-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <button class="modal-close" data-close>×</button>
+      <h3>👥 Sync with your household</h3>
+      <p class="muted">Share a code with your partner so the same budget shows up on both your devices, in real time.</p>
+
+      <div class="hh-tabs">
+        <button class="hh-tab active" data-tab="create" type="button">Create new</button>
+        <button class="hh-tab" data-tab="join" type="button">Join existing</button>
+      </div>
+
+      <div class="hh-pane" data-pane="create">
+        <label>
+          Your household code
+          <div class="hh-code-display">
+            <code id="hh-suggested-code">—</code>
+            <button type="button" id="hh-regen" class="icon-btn" title="Regenerate">↻</button>
+            <button type="button" id="hh-copy" class="ghost-btn">Copy</button>
+          </div>
+          <small class="muted">Share this with your partner — they'll enter it on their device to join.</small>
+        </label>
+        <button type="button" id="hh-create-btn" class="primary-btn">Create &amp; Sync</button>
+      </div>
+
+      <div class="hh-pane" data-pane="join" hidden>
+        <label>
+          Household code
+          <input type="text" id="hh-join-code" placeholder="e.g. mint-tiger-7" autocomplete="off" />
+        </label>
+        <button type="button" id="hh-join-btn" class="primary-btn">Join &amp; Sync</button>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="ghost-btn" id="hh-skip">Use locally only</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Sync status / change household -->
+  <div class="modal" id="sync-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <button class="modal-close" data-close>×</button>
+      <h3>🔗 Sync</h3>
+      <div id="sync-status-body">
+        <!-- Populated by app.js -->
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="ghost-btn" id="sync-disconnect-btn">Disconnect (use locally)</button>
+        <button type="button" class="primary-btn" id="sync-change-btn">Change household</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast container -->
   <div id="toast-container" aria-live="polite"></div>
 
-  <script src="app.js"></script>
+  <script type="module" src="app.js"></script>
 </body>
 </html>
