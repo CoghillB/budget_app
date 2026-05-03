@@ -921,12 +921,74 @@ import { firebaseConfig } from './firebase-config.js';
     });
   }
 
+  // ---------- PWA install + offline ----------
+  let deferredInstall = null;
+
+  function isStandalone() {
+    return window.matchMedia('(display-mode: standalone)').matches
+      || window.navigator.standalone === true;
+  }
+
+  function isIosSafari() {
+    const ua = navigator.userAgent;
+    const ios = /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+    const safari = /Safari/.test(ua) && !/CriOS|FxiOS|EdgiOS/.test(ua);
+    return ios && safari;
+  }
+
+  function setupPWA() {
+    // Register the service worker (offline + install eligibility).
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./service-worker.js').catch((err) => {
+        console.warn('Service worker registration failed', err);
+      });
+    }
+
+    // Don't offer install if already running as an installed app.
+    if (isStandalone()) return;
+
+    const installBtn = document.getElementById('install-btn');
+
+    // Chrome / Edge / Android: capture the prompt event, show our button.
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredInstall = e;
+      installBtn.hidden = false;
+    });
+
+    // iOS Safari has no beforeinstallprompt — show the button so we can
+    // open a friendly instructions modal when tapped.
+    if (isIosSafari()) installBtn.hidden = false;
+
+    installBtn.addEventListener('click', async () => {
+      if (deferredInstall) {
+        deferredInstall.prompt();
+        const { outcome } = await deferredInstall.userChoice;
+        deferredInstall = null;
+        installBtn.hidden = true;
+        if (outcome === 'accepted') {
+          fireConfetti();
+          toast('Installed! 🎉', 'success');
+        }
+      } else {
+        document.getElementById('install-modal').hidden = false;
+      }
+    });
+
+    window.addEventListener('appinstalled', () => {
+      installBtn.hidden = true;
+      deferredInstall = null;
+      toast('Installed! 🎉', 'success');
+    });
+  }
+
   // ---------- Boot ----------
   function boot() {
     bindEvents();
     render();
     setSyncStatus('local');
     startSync();
+    setupPWA();
   }
 
   if (document.readyState === 'loading') {
