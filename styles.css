@@ -188,6 +188,12 @@ main {
   transform: translateY(-1px);
 }
 
+.ghost-btn.delete-btn:hover {
+  background: color-mix(in srgb, var(--bad) 8%, white);
+  border-color: color-mix(in srgb, var(--bad) 35%, transparent);
+  color: var(--bad);
+}
+
 .primary-btn {
   border: none;
   background: var(--accent);

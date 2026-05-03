@@ -160,9 +160,10 @@ import { firebaseConfig } from './firebase-config.js';
       status.textContent = 'Viewing';
     }
 
-    const resetBtn = document.getElementById('reset-month');
     const isCurrent = key === data.currentMonth;
-    resetBtn.style.display = isCurrent ? '' : 'none';
+    document.getElementById('reset-month').hidden = !isCurrent;
+    document.getElementById('unlock-month').hidden = isCurrent;
+    document.getElementById('clear-month').hidden = isCurrent;
 
     // Disable add buttons when read-only
     const ro = isReadOnly();
@@ -419,6 +420,39 @@ import { firebaseConfig } from './firebase-config.js';
     render();
     fireConfetti();
     toast(`New month started: ${monthLabel(key)} 🚀`, 'success');
+  }
+
+  /**
+   * Make the currently-viewed historical month active again.
+   * The previously-active month becomes a regular historical entry — it isn't
+   * deleted, so nothing is destroyed by mistake. The user can then delete it
+   * separately if it was an empty/accidental month.
+   */
+  function reactivateMonth() {
+    if (!viewingMonth || viewingMonth === data.currentMonth) return;
+    const newActive = viewingMonth;
+    data.currentMonth = newActive;
+    viewingMonth = null;
+    save();
+    render();
+    toast(`${monthLabel(newActive)} is active again 🔓`, 'success');
+  }
+
+  /**
+   * Reset the currently-viewed historical month: drop income and all
+   * expenses, but keep the month entry and its category definitions.
+   * Useful for cleaning up an accidental "New Month" without losing the
+   * structure of categories you already set up.
+   */
+  function clearHistoricalMonth() {
+    if (!viewingMonth || viewingMonth === data.currentMonth) return;
+    const m = data.months[viewingMonth];
+    if (!m) return;
+    m.income = [];
+    (m.categories || []).forEach(c => { c.expenses = []; });
+    save();
+    render();
+    toast(`Cleared ${monthLabel(viewingMonth)}`, 'info');
   }
 
   // ---------- Modals ----------
@@ -766,6 +800,12 @@ import { firebaseConfig } from './firebase-config.js';
     });
     document.getElementById('reset-month').addEventListener('click', () => {
       confirmDelete('Start a new month?', 'This locks in the current month as history and starts fresh. Your categories carry over with $0 spent.', startNewMonth);
+    });
+    document.getElementById('unlock-month').addEventListener('click', reactivateMonth);
+    document.getElementById('clear-month').addEventListener('click', () => {
+      if (!viewingMonth || viewingMonth === data.currentMonth) return;
+      const label = monthLabel(viewingMonth);
+      confirmDelete(`Clear ${label}?`, 'Income and all expenses for this month will be reset to zero. Your categories stay.', clearHistoricalMonth);
     });
     document.getElementById('history-btn').addEventListener('click', openHistoryModal);
 
