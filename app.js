@@ -163,7 +163,7 @@ import { firebaseConfig } from './firebase-config.js';
     const isCurrent = key === data.currentMonth;
     document.getElementById('reset-month').hidden = !isCurrent;
     document.getElementById('unlock-month').hidden = isCurrent;
-    document.getElementById('delete-month').hidden = isCurrent;
+    document.getElementById('clear-month').hidden = isCurrent;
 
     // Disable add buttons when read-only
     const ro = isReadOnly();
@@ -439,17 +439,20 @@ import { firebaseConfig } from './firebase-config.js';
   }
 
   /**
-   * Delete the currently-viewed historical month entirely. The active month
-   * can never be deleted — that would wipe live data without warning.
+   * Reset the currently-viewed historical month: drop income and all
+   * expenses, but keep the month entry and its category definitions.
+   * Useful for cleaning up an accidental "New Month" without losing the
+   * structure of categories you already set up.
    */
-  function deleteHistoricalMonth() {
+  function clearHistoricalMonth() {
     if (!viewingMonth || viewingMonth === data.currentMonth) return;
-    const key = viewingMonth;
-    delete data.months[key];
-    viewingMonth = null;
+    const m = data.months[viewingMonth];
+    if (!m) return;
+    m.income = [];
+    (m.categories || []).forEach(c => { c.expenses = []; });
     save();
     render();
-    toast(`Deleted ${monthLabel(key)}`, 'info');
+    toast(`Cleared ${monthLabel(viewingMonth)}`, 'info');
   }
 
   // ---------- Modals ----------
@@ -799,10 +802,10 @@ import { firebaseConfig } from './firebase-config.js';
       confirmDelete('Start a new month?', 'This locks in the current month as history and starts fresh. Your categories carry over with $0 spent.', startNewMonth);
     });
     document.getElementById('unlock-month').addEventListener('click', reactivateMonth);
-    document.getElementById('delete-month').addEventListener('click', () => {
+    document.getElementById('clear-month').addEventListener('click', () => {
       if (!viewingMonth || viewingMonth === data.currentMonth) return;
       const label = monthLabel(viewingMonth);
-      confirmDelete(`Delete ${label}?`, 'This permanently removes this month’s record. The active month is unaffected.', deleteHistoricalMonth);
+      confirmDelete(`Clear ${label}?`, 'Income and all expenses for this month will be reset to zero. Your categories stay.', clearHistoricalMonth);
     });
     document.getElementById('history-btn').addEventListener('click', openHistoryModal);
 
