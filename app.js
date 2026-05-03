@@ -365,7 +365,7 @@ import { firebaseConfig } from './firebase-config.js';
     m.income.push({ id: uid(), name, amount: +amount });
     save();
     render();
-    fireConfetti(['#2bd99f', '#5cffb1', '#00e0ff']);
+    fireConfetti(['#10b981', '#34d399', '#06b6d4']);
     toast(`+${fmt(amount)} income added 💸`, 'success');
   }
 
@@ -644,7 +644,7 @@ import { firebaseConfig } from './firebase-config.js';
 
   // ---------- Effects ----------
   function fireConfetti(palette) {
-    const colors = palette || ['#7c5cff', '#00e0ff', '#ff5cf3', '#2bd99f', '#ffb648'];
+    const colors = palette || ['#6366f1', '#f43f5e', '#10b981', '#f59e0b', '#06b6d4'];
     const layer = document.getElementById('confetti-layer');
     const count = 60;
     for (let i = 0; i < count; i++) {
@@ -676,66 +676,6 @@ import { firebaseConfig } from './firebase-config.js';
     t.textContent = message;
     c.appendChild(t);
     setTimeout(() => t.remove(), 3200);
-  }
-
-  // ---------- Particle background ----------
-  function initBackground() {
-    const canvas = document.getElementById('bg-canvas');
-    const ctx = canvas.getContext('2d');
-    let w, h;
-    const dots = [];
-    const COUNT = 40;
-
-    function resize() {
-      w = canvas.width = window.innerWidth * window.devicePixelRatio;
-      h = canvas.height = window.innerHeight * window.devicePixelRatio;
-    }
-    window.addEventListener('resize', resize);
-    resize();
-
-    for (let i = 0; i < COUNT; i++) {
-      dots.push({
-        x: Math.random() * w,
-        y: Math.random() * h,
-        vx: (Math.random() - 0.5) * 0.3 * window.devicePixelRatio,
-        vy: (Math.random() - 0.5) * 0.3 * window.devicePixelRatio,
-        r: (1 + Math.random() * 2) * window.devicePixelRatio,
-        c: Math.random() > 0.5 ? 'rgba(124, 92, 255, 0.55)' : 'rgba(0, 224, 255, 0.45)'
-      });
-    }
-
-    function tick() {
-      ctx.clearRect(0, 0, w, h);
-      // connections
-      for (let i = 0; i < dots.length; i++) {
-        for (let j = i + 1; j < dots.length; j++) {
-          const a = dots[i], b = dots[j];
-          const dx = a.x - b.x, dy = a.y - b.y;
-          const d = Math.sqrt(dx * dx + dy * dy);
-          const max = 140 * window.devicePixelRatio;
-          if (d < max) {
-            ctx.strokeStyle = `rgba(124, 92, 255, ${0.18 * (1 - d / max)})`;
-            ctx.lineWidth = 1 * window.devicePixelRatio;
-            ctx.beginPath();
-            ctx.moveTo(a.x, a.y);
-            ctx.lineTo(b.x, b.y);
-            ctx.stroke();
-          }
-        }
-      }
-      // dots
-      for (const d of dots) {
-        d.x += d.vx; d.y += d.vy;
-        if (d.x < 0 || d.x > w) d.vx *= -1;
-        if (d.y < 0 || d.y > h) d.vy *= -1;
-        ctx.beginPath();
-        ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2);
-        ctx.fillStyle = d.c;
-        ctx.fill();
-      }
-      requestAnimationFrame(tick);
-    }
-    tick();
   }
 
   // ---------- Sync ----------
@@ -1048,7 +988,6 @@ import { firebaseConfig } from './firebase-config.js';
   // ---------- Boot ----------
   function boot() {
     bindEvents();
-    initBackground();
     render();
     setSyncStatus('local');
     startSync();
