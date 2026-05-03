@@ -27,7 +27,32 @@
   --radius: 16px;
 }
 
-* { box-sizing: border-box; }
+* {
+  box-sizing: border-box;
+  /* Suppress the gray rectangle mobile browsers paint on tap. We rely on
+     custom :active scale animations for press feedback instead. */
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: inherit;
+}
+
+/* Drop the default click outline (it's the ugly square users see), but
+   restore proper keyboard-focus rings via :focus-visible so accessibility
+   is preserved for users navigating with Tab. */
+button:focus,
+[role="button"]:focus,
+a:focus { outline: none; }
+
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 
 html {
   background-color: var(--bg-0);
