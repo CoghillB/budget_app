@@ -11,28 +11,47 @@
   <div id="confetti-layer" aria-hidden="true"></div>
 
   <header class="topbar">
-    <div class="brand">
-      <span class="logo">💰</span>
-      <div class="brand-text">
+    <div class="topbar-row topbar-row-top">
+      <div class="brand">
+        <span class="logo">💰</span>
         <h1>Budget Quest</h1>
-        <p class="tagline">Level up your money</p>
       </div>
-    </div>
-    <div class="month-switcher">
-      <button id="prev-month" class="icon-btn" title="Previous month">‹</button>
-      <div class="month-label">
-        <span id="month-name">—</span>
-        <small id="month-status"></small>
-      </div>
-      <button id="next-month" class="icon-btn" title="Next month">›</button>
-      <button id="reset-month" class="ghost-btn" title="Start a new month">↻ New Month</button>
-      <button id="unlock-month" class="ghost-btn" title="Make this month active again" hidden>🔓 Make Active</button>
-      <button id="clear-month" class="ghost-btn delete-btn" title="Reset this month's income and expenses" hidden>🧹 Clear</button>
-      <button id="history-btn" class="ghost-btn" title="View previous months">📜 History</button>
       <button id="sync-indicator" class="sync-indicator local" title="Sync settings">
         <span class="sync-dot"></span>
         <span class="sync-label">Local</span>
       </button>
+    </div>
+    <div class="topbar-row topbar-row-bottom">
+      <div class="month-picker">
+        <button id="prev-month" class="month-arrow" title="Previous month" aria-label="Previous month">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <div class="month-display">
+          <span id="month-name" class="month-name">—</span>
+          <span id="month-status" class="month-status"></span>
+        </div>
+        <button id="next-month" class="month-arrow" title="Next month" aria-label="Next month">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+      </div>
+      <div class="topbar-actions">
+        <button id="reset-month" class="pill-btn" title="Start a new month">
+          <span class="pill-icon">↻</span>
+          <span class="pill-label">New Month</span>
+        </button>
+        <button id="unlock-month" class="pill-btn pill-accent" title="Make this month active again" hidden>
+          <span class="pill-icon">🔓</span>
+          <span class="pill-label">Make Active</span>
+        </button>
+        <button id="clear-month" class="pill-btn pill-danger" title="Reset this month's income and expenses" hidden>
+          <span class="pill-icon">🧹</span>
+          <span class="pill-label">Clear</span>
+        </button>
+        <button id="history-btn" class="pill-btn" title="View previous months">
+          <span class="pill-icon">📜</span>
+          <span class="pill-label">History</span>
+        </button>
+      </div>
     </div>
   </header>
 
