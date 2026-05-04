@@ -124,6 +124,12 @@ main {
   justify-content: space-between;
 }
 
+.topbar-top-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .topbar-row-bottom {
   justify-content: space-between;
   flex-wrap: wrap;
@@ -769,6 +775,17 @@ main {
 }
 
 .muted { color: var(--muted); font-size: 13px; }
+
+/* Install instructions list */
+.install-steps {
+  margin: 12px 0 18px;
+  padding: 0 0 0 22px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+.install-steps li { margin-bottom: 8px; }
+.install-steps strong { color: var(--accent); font-weight: 700; }
 
 /* ---------- History ---------- */
 .history-list {

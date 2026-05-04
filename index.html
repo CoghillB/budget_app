@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Budget Quest — Track. Slay. Save.</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%92%B0%3C/text%3E%3C/svg%3E" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <meta name="theme-color" content="#6366f1" />
+  <link rel="apple-touch-icon" href="icon.svg" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="Budget Quest" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
@@ -16,10 +22,16 @@
         <span class="logo">💰</span>
         <h1>Budget Quest</h1>
       </div>
-      <button id="sync-indicator" class="sync-indicator local" title="Sync settings">
-        <span class="sync-dot"></span>
-        <span class="sync-label">Local</span>
-      </button>
+      <div class="topbar-top-right">
+        <button id="install-btn" class="pill-btn pill-accent" title="Install Budget Quest as an app" hidden>
+          <span class="pill-icon">📱</span>
+          <span class="pill-label">Install</span>
+        </button>
+        <button id="sync-indicator" class="sync-indicator local" title="Sync settings">
+          <span class="sync-dot"></span>
+          <span class="sync-label">Local</span>
+        </button>
+      </div>
     </div>
     <div class="topbar-row topbar-row-bottom">
       <div class="month-picker">
@@ -268,6 +280,24 @@
       <div class="modal-actions">
         <button type="button" class="ghost-btn" id="sync-disconnect-btn">Disconnect (use locally)</button>
         <button type="button" class="primary-btn" id="sync-change-btn">Change household</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: iOS install instructions -->
+  <div class="modal" id="install-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card">
+      <button class="modal-close" data-close>×</button>
+      <h3>📱 Add to Home Screen</h3>
+      <p class="muted">Install Budget Quest as an app on your phone — full-screen, fast launch, works offline.</p>
+      <ol class="install-steps">
+        <li>Tap the <strong>Share</strong> button at the bottom of Safari</li>
+        <li>Scroll and tap <strong>Add to Home Screen</strong></li>
+        <li>Tap <strong>Add</strong> in the top right</li>
+      </ol>
+      <div class="modal-actions">
+        <button type="button" class="primary-btn" data-close>Got it</button>
       </div>
     </div>
   </div>

@@ -1,0 +1,19 @@
+{
+  "name": "Budget Quest",
+  "short_name": "Budget",
+  "description": "A clean budget tracker with monthly resets, history, and household sync.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#fefaf6",
+  "theme_color": "#6366f1",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

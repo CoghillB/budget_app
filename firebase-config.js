@@ -15,10 +15,11 @@
 // comes from the Firestore rules and authorized domains, not from hiding the keys.
 
 export const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
+  apiKey: "AIzaSyDrSP0gKhZRzerj5RyxtDMbHkKzW5wVT0M",
+  authDomain: "budget-quest-ac4be.firebaseapp.com",
+  projectId: "budget-quest-ac4be",
+  storageBucket: "budget-quest-ac4be.firebasestorage.app",
+  messagingSenderId: "150257518386",
+  appId: "1:150257518386:web:a5b5a32f004f9c89caf92b",
+  measurementId: "G-VZT7GC0Z3B"
 };
