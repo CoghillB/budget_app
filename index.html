@@ -114,6 +114,14 @@
       </div>
     </section>
 
+    <!-- Spending Breakdown -->
+    <section class="section breakdown-section" id="breakdown-section" hidden>
+      <div class="section-header">
+        <h2>📊 Where the money went</h2>
+      </div>
+      <div id="chart-container" class="chart-container"></div>
+    </section>
+
     <!-- Income Section -->
     <section class="section income-section">
       <div class="section-header">
@@ -172,7 +180,7 @@
     </div>
   </div>
 
-  <!-- Modal: Add Expense -->
+  <!-- Modal: Add / Edit Expense -->
   <div class="modal" id="expense-modal" hidden>
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card">
@@ -187,20 +195,29 @@
           Amount ($)
           <input type="number" id="exp-amount" required min="0" step="0.01" placeholder="0.00" />
         </label>
+        <label>
+          Note <span class="label-hint">(optional)</span>
+          <input type="text" id="exp-note" maxlength="200" placeholder="e.g. Costco run, weekly produce" />
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="exp-recurring" />
+          <span class="checkbox-text"><strong>🔁 Recurring</strong> — auto-add to every new month</span>
+        </label>
         <div class="modal-actions">
+          <button type="button" class="danger-btn" id="exp-delete-btn" hidden>Delete</button>
           <button type="button" class="ghost-btn" data-close>Cancel</button>
-          <button type="submit" class="primary-btn">Add</button>
+          <button type="submit" class="primary-btn" id="exp-save-btn">Add</button>
         </div>
       </form>
     </div>
   </div>
 
-  <!-- Modal: Add Income -->
+  <!-- Modal: Add / Edit Income -->
   <div class="modal" id="income-modal" hidden>
     <div class="modal-backdrop" data-close></div>
     <div class="modal-card">
       <button class="modal-close" data-close>×</button>
-      <h3>Add Income</h3>
+      <h3 id="income-modal-title">Add Income</h3>
       <form id="income-form">
         <label>
           Source
@@ -210,11 +227,30 @@
           Amount ($)
           <input type="number" id="inc-amount" required min="0" step="0.01" placeholder="0.00" />
         </label>
+        <label>
+          Note <span class="label-hint">(optional)</span>
+          <input type="text" id="inc-note" maxlength="200" placeholder="e.g. side gig, end-of-month bonus" />
+        </label>
+        <label class="checkbox-row">
+          <input type="checkbox" id="inc-recurring" />
+          <span class="checkbox-text"><strong>🔁 Recurring</strong> — auto-add to every new month</span>
+        </label>
         <div class="modal-actions">
+          <button type="button" class="danger-btn" id="inc-delete-btn" hidden>Delete</button>
           <button type="button" class="ghost-btn" data-close>Cancel</button>
-          <button type="submit" class="primary-btn">Add</button>
+          <button type="submit" class="primary-btn" id="inc-save-btn">Add</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- Modal: Full expense list for one category -->
+  <div class="modal" id="expense-list-modal" hidden>
+    <div class="modal-backdrop" data-close></div>
+    <div class="modal-card modal-wide">
+      <button class="modal-close" data-close>×</button>
+      <h3 id="expense-list-title">Expenses</h3>
+      <div id="expense-list-body" class="expense-list-body"></div>
     </div>
   </div>
 

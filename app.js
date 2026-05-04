@@ -65,7 +65,9 @@ import { firebaseConfig } from './firebase-config.js';
    */
   let data = migrate(load());
   let editingCategoryId = null;       // when set, category modal is editing
-  let activeExpenseTarget = null;     // {categoryId}
+  let activeExpenseTarget = null;     // {categoryId, expenseId?} — expenseId set means edit mode
+  let editingIncomeId = null;         // income modal: id when editing, null when adding
+  let listingCategoryId = null;       // category whose all-expenses modal is open
   let viewingMonth = null;            // when viewing historical (read-only)
   let confirmAction = null;
   let syncState = 'local';            // local | connecting | synced | syncing | offline | error
@@ -175,8 +177,84 @@ import { firebaseConfig } from './firebase-config.js';
   function render() {
     renderHeader();
     renderDashboard();
+    renderChart();
     renderIncome();
     renderCategories();
+  }
+
+  function renderChart() {
+    const m = getMonth();
+    const section = document.getElementById('breakdown-section');
+    const container = document.getElementById('chart-container');
+    const slices = (m.categories || [])
+      .map(c => ({ id: c.id, name: c.name, color: c.color || '#7c5cff', icon: c.icon, value: categorySpent(c) }))
+      .filter(s => s.value > 0);
+
+    const total = slices.reduce((s, x) => s + x.value, 0);
+    if (total <= 0) {
+      section.hidden = true;
+      container.innerHTML = '';
+      return;
+    }
+    section.hidden = false;
+    slices.sort((a, b) => b.value - a.value);
+
+    const r = 80;
+    const stroke = 26;
+    const cx = 100, cy = 100;
+    const circumference = 2 * Math.PI * r;
+    let dashOffset = 0;
+    const segments = slices.map(s => {
+      const fraction = s.value / total;
+      const length = fraction * circumference;
+      const seg = {
+        ...s,
+        fraction,
+        length,
+        offset: dashOffset
+      };
+      dashOffset += length;
+      return seg;
+    });
+
+    const segMarkup = segments.map(seg => `
+      <circle class="donut-segment"
+              cx="${cx}" cy="${cy}" r="${r}"
+              stroke="${seg.color}"
+              stroke-dasharray="${seg.length.toFixed(2)} ${(circumference - seg.length).toFixed(2)}"
+              stroke-dashoffset="${(-seg.offset).toFixed(2)}"
+              transform="rotate(-90 ${cx} ${cy})"></circle>
+    `).join('');
+
+    const legendMarkup = segments.map(seg => `
+      <div class="donut-legend-item" data-cat="${seg.id}">
+        <span class="swatch" style="background: ${seg.color}"></span>
+        <span class="legend-name">${seg.icon ? seg.icon + ' ' : ''}${escapeHtml(seg.name)}</span>
+        <span><span class="legend-amount">${fmt(seg.value)}</span><span class="legend-pct">${Math.round(seg.fraction * 100)}%</span></span>
+      </div>
+    `).join('');
+
+    container.innerHTML = `
+      <div class="donut-wrap">
+        <svg class="donut-svg" viewBox="0 0 200 200" aria-hidden="true">
+          <circle class="donut-track" cx="${cx}" cy="${cy}" r="${r}"></circle>
+          ${segMarkup}
+        </svg>
+        <div class="donut-center">
+          <div>
+            <div class="donut-total">${fmt(total)}</div>
+            <div class="donut-label">Spent this month</div>
+          </div>
+        </div>
+      </div>
+      <div class="donut-legend">${legendMarkup}</div>
+    `;
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/[&<>"']/g, (c) => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
   }
 
   function renderHeader() {
@@ -230,23 +308,26 @@ import { firebaseConfig } from './firebase-config.js';
       list.appendChild(empty);
       return;
     }
+    const ro = isReadOnly();
     m.income.forEach((inc, i) => {
       const el = document.createElement('div');
       el.className = 'income-item';
       el.style.animationDelay = `${i * 0.04}s`;
+      const recurring = inc.recurring ? '<span class="recurring-icon" title="Recurring">🔁</span>' : '';
       el.innerHTML = `
-        <div>
-          <div class="name"></div>
+        <div class="name-block">
+          <div class="name">${recurring}<span class="inc-name-text"></span></div>
         </div>
         <div style="display:flex;align-items:center;">
           <span class="amount"></span>
-          ${isReadOnly() ? '' : '<button class="delete" title="Remove">×</button>'}
         </div>
       `;
-      el.querySelector('.name').textContent = inc.name;
+      el.querySelector('.inc-name-text').textContent = inc.name;
       el.querySelector('.amount').textContent = fmt(inc.amount);
-      const del = el.querySelector('.delete');
-      if (del) del.addEventListener('click', () => removeIncome(inc.id));
+      if (!ro) {
+        el.style.cursor = 'pointer';
+        el.addEventListener('click', () => openIncomeModal(inc.id));
+      }
       list.appendChild(el);
     });
   }
@@ -312,22 +393,32 @@ import { firebaseConfig } from './firebase-config.js';
     card.querySelector('.cat-name').textContent = cat.name;
     card.querySelector('.cat-amounts').textContent = `${fmt(spent)} of ${fmt(limit)}`;
 
-    // Recent expenses (chips)
-    const recentExpenses = (cat.expenses || []).slice(-3).reverse();
+    // Recent expenses (clickable chips). Show last 3 + "View all" if more.
+    const allExpenses = cat.expenses || [];
+    const recentExpenses = allExpenses.slice(-3).reverse();
     if (recentExpenses.length) {
       const recent = document.createElement('div');
       recent.className = 'recent';
       recentExpenses.forEach(e => {
-        const chip = document.createElement('span');
-        chip.className = 'chip';
-        const nameSpan = document.createElement('span');
-        nameSpan.textContent = e.name;
-        const amt = document.createElement('strong');
-        amt.textContent = fmt(e.amount);
-        chip.appendChild(nameSpan);
-        chip.appendChild(amt);
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'chip chip-clickable';
+        chip.title = e.note ? `${e.name} — ${e.note}` : e.name;
+        const recurring = e.recurring ? '<span class="recurring-icon">🔁</span> ' : '';
+        chip.innerHTML = `${recurring}<span></span><strong></strong>`;
+        chip.querySelectorAll('span')[recurring ? 1 : 0].textContent = e.name;
+        chip.querySelector('strong').textContent = fmt(e.amount);
+        if (!ro) chip.addEventListener('click', () => openExpenseModal(cat.id, e.id));
         recent.appendChild(chip);
       });
+      if (allExpenses.length > 3) {
+        const more = document.createElement('button');
+        more.type = 'button';
+        more.className = 'chip chip-more';
+        more.textContent = `View all (${allExpenses.length})`;
+        more.addEventListener('click', () => openExpenseListModal(cat.id));
+        recent.appendChild(more);
+      }
       card.appendChild(recent);
     }
 
@@ -345,14 +436,30 @@ import { firebaseConfig } from './firebase-config.js';
   }
 
   // ---------- Mutations ----------
-  function addIncome(name, amount) {
+  function addIncome({ name, amount, note, recurring }) {
     if (isReadOnly()) return;
     const m = getMonth();
-    m.income.push({ id: uid(), name, amount: +amount });
+    m.income.push({
+      id: uid(),
+      name,
+      amount: +amount,
+      note: note || '',
+      recurring: !!recurring
+    });
     save();
     render();
     fireConfetti(['#10b981', '#34d399', '#06b6d4']);
     toast(`+${fmt(amount)} income added 💸`, 'success');
+  }
+
+  function updateIncome(id, patch) {
+    if (isReadOnly()) return;
+    const m = getMonth();
+    const inc = (m.income || []).find(i => i.id === id);
+    if (!inc) return;
+    Object.assign(inc, patch);
+    save();
+    render();
   }
 
   function removeIncome(id) {
@@ -393,13 +500,19 @@ import { firebaseConfig } from './firebase-config.js';
     if (cat) toast(`Removed "${cat.name}"`, 'info');
   }
 
-  function addExpense(categoryId, name, amount) {
+  function addExpense(categoryId, { name, amount, note, recurring }) {
     if (isReadOnly()) return;
     const m = getMonth();
     const cat = m.categories.find(c => c.id === categoryId);
     if (!cat) return;
     cat.expenses = cat.expenses || [];
-    cat.expenses.push({ id: uid(), name, amount: +amount });
+    cat.expenses.push({
+      id: uid(),
+      name,
+      amount: +amount,
+      note: note || '',
+      recurring: !!recurring
+    });
     save();
     render();
 
@@ -412,6 +525,29 @@ import { firebaseConfig } from './firebase-config.js';
     } else if (limit > 0 && spent / limit >= 0.8) {
       toast(`Watch out — "${cat.name}" at ${Math.round(spent / limit * 100)}%`, 'info');
     }
+  }
+
+  function updateExpense(categoryId, expenseId, patch) {
+    if (isReadOnly()) return;
+    const m = getMonth();
+    const cat = m.categories.find(c => c.id === categoryId);
+    if (!cat) return;
+    const exp = (cat.expenses || []).find(e => e.id === expenseId);
+    if (!exp) return;
+    Object.assign(exp, patch);
+    save();
+    render();
+  }
+
+  function deleteExpense(categoryId, expenseId) {
+    if (isReadOnly()) return;
+    const m = getMonth();
+    const cat = m.categories.find(c => c.id === categoryId);
+    if (!cat) return;
+    cat.expenses = (cat.expenses || []).filter(e => e.id !== expenseId);
+    save();
+    render();
+    toast('Expense removed', 'info');
   }
 
   function startNewMonth() {
@@ -430,7 +566,9 @@ import { firebaseConfig } from './firebase-config.js';
       key = monthKey(next);
     }
 
-    // Carry over category structure with reset spending
+    // Carry over category structure with reset spending — but recurring
+    // expenses get auto-copied into the new month so things like rent and
+    // subscriptions don't have to be re-entered every month.
     const prev = data.months[data.currentMonth];
     const carriedCategories = (prev?.categories || []).map(c => ({
       id: uid(),
@@ -438,16 +576,25 @@ import { firebaseConfig } from './firebase-config.js';
       limit: c.limit,
       color: c.color,
       icon: c.icon,
-      expenses: []
+      expenses: (c.expenses || [])
+        .filter(e => e.recurring)
+        .map(e => ({ id: uid(), name: e.name, amount: e.amount, note: e.note || '', recurring: true }))
     }));
 
-    data.months[key] = { income: [], categories: carriedCategories };
+    // Carry over recurring income too.
+    const carriedIncome = (prev?.income || [])
+      .filter(i => i.recurring)
+      .map(i => ({ id: uid(), name: i.name, amount: i.amount, note: i.note || '', recurring: true }));
+
+    data.months[key] = { income: carriedIncome, categories: carriedCategories };
     data.currentMonth = key;
     viewingMonth = null;
     save();
     render();
     fireConfetti();
-    toast(`New month started: ${monthLabel(key)} 🚀`, 'success');
+    const recurringCount = carriedIncome.length + carriedCategories.reduce((s, c) => s + c.expenses.length, 0);
+    const note = recurringCount > 0 ? ` (${recurringCount} recurring auto-added 🔁)` : '';
+    toast(`New month started: ${monthLabel(key)}${note} 🚀`, 'success');
   }
 
   /**
@@ -548,25 +695,119 @@ import { firebaseConfig } from './firebase-config.js';
     });
   }
 
-  function openExpenseModal(categoryId) {
+  function openExpenseModal(categoryId, expenseId) {
     if (isReadOnly()) return;
-    activeExpenseTarget = { categoryId };
+    const cat = getMonth().categories.find(c => c.id === categoryId);
+    if (!cat) return;
+    activeExpenseTarget = { categoryId, expenseId: expenseId || null };
+
     const modal = document.getElementById('expense-modal');
     const title = document.getElementById('expense-modal-title');
-    const cat = getMonth().categories.find(c => c.id === categoryId);
-    title.textContent = `Add to ${cat.name}`;
-    document.getElementById('exp-name').value = '';
-    document.getElementById('exp-amount').value = '';
+    const nameEl = document.getElementById('exp-name');
+    const amountEl = document.getElementById('exp-amount');
+    const noteEl = document.getElementById('exp-note');
+    const recurringEl = document.getElementById('exp-recurring');
+    const saveBtn = document.getElementById('exp-save-btn');
+    const deleteBtn = document.getElementById('exp-delete-btn');
+
+    if (expenseId) {
+      const exp = (cat.expenses || []).find(e => e.id === expenseId);
+      if (!exp) return;
+      title.textContent = `Edit · ${cat.name}`;
+      nameEl.value = exp.name || '';
+      amountEl.value = exp.amount;
+      noteEl.value = exp.note || '';
+      recurringEl.checked = !!exp.recurring;
+      saveBtn.textContent = 'Save';
+      deleteBtn.hidden = false;
+    } else {
+      title.textContent = `Add to ${cat.name}`;
+      nameEl.value = '';
+      amountEl.value = '';
+      noteEl.value = '';
+      recurringEl.checked = false;
+      saveBtn.textContent = 'Add';
+      deleteBtn.hidden = true;
+    }
     modal.hidden = false;
-    setTimeout(() => document.getElementById('exp-name').focus(), 50);
+    setTimeout(() => nameEl.focus(), 50);
   }
 
-  function openIncomeModal() {
+  function openIncomeModal(incomeId) {
     if (isReadOnly()) return;
-    document.getElementById('inc-name').value = '';
-    document.getElementById('inc-amount').value = '';
+    editingIncomeId = incomeId || null;
+
+    const title = document.getElementById('income-modal-title');
+    const nameEl = document.getElementById('inc-name');
+    const amountEl = document.getElementById('inc-amount');
+    const noteEl = document.getElementById('inc-note');
+    const recurringEl = document.getElementById('inc-recurring');
+    const saveBtn = document.getElementById('inc-save-btn');
+    const deleteBtn = document.getElementById('inc-delete-btn');
+
+    if (incomeId) {
+      const inc = (getMonth().income || []).find(i => i.id === incomeId);
+      if (!inc) return;
+      title.textContent = 'Edit Income';
+      nameEl.value = inc.name || '';
+      amountEl.value = inc.amount;
+      noteEl.value = inc.note || '';
+      recurringEl.checked = !!inc.recurring;
+      saveBtn.textContent = 'Save';
+      deleteBtn.hidden = false;
+    } else {
+      title.textContent = 'Add Income';
+      nameEl.value = '';
+      amountEl.value = '';
+      noteEl.value = '';
+      recurringEl.checked = false;
+      saveBtn.textContent = 'Add';
+      deleteBtn.hidden = true;
+    }
     document.getElementById('income-modal').hidden = false;
-    setTimeout(() => document.getElementById('inc-name').focus(), 50);
+    setTimeout(() => nameEl.focus(), 50);
+  }
+
+  function openExpenseListModal(categoryId) {
+    listingCategoryId = categoryId;
+    const cat = getMonth().categories.find(c => c.id === categoryId);
+    if (!cat) return;
+    const title = document.getElementById('expense-list-title');
+    const body = document.getElementById('expense-list-body');
+    const ro = isReadOnly();
+    title.textContent = `${cat.icon || '🛒'}  ${cat.name} expenses`;
+    const expenses = [...(cat.expenses || [])].reverse();
+    if (expenses.length === 0) {
+      body.innerHTML = '<div class="empty-row">No expenses yet for this category.</div>';
+    } else {
+      body.innerHTML = '';
+      expenses.forEach(e => {
+        const row = document.createElement('div');
+        row.className = 'expense-row';
+        const recurring = e.recurring ? '<span class="recurring-icon" title="Recurring">🔁</span>' : '';
+        const note = e.note ? `<div class="expense-note"></div>` : '';
+        row.innerHTML = `
+          <div class="expense-main">
+            <div class="expense-name">${recurring}<span class="exp-name-text"></span></div>
+            ${note}
+          </div>
+          <div class="expense-amount"></div>
+        `;
+        row.querySelector('.exp-name-text').textContent = e.name;
+        row.querySelector('.expense-amount').textContent = fmt(e.amount);
+        if (e.note) row.querySelector('.expense-note').textContent = e.note;
+        if (!ro) {
+          row.addEventListener('click', () => {
+            document.getElementById('expense-list-modal').hidden = true;
+            openExpenseModal(categoryId, e.id);
+          });
+        } else {
+          row.style.cursor = 'default';
+        }
+        body.appendChild(row);
+      });
+    }
+    document.getElementById('expense-list-modal').hidden = false;
   }
 
   function openHistoryModal() {
@@ -865,25 +1106,57 @@ import { firebaseConfig } from './firebase-config.js';
       closeAllModals();
     });
 
-    // Expense form
+    // Expense form (add OR edit)
     document.getElementById('expense-form').addEventListener('submit', (e) => {
       e.preventDefault();
+      if (!activeExpenseTarget) return;
       const name = document.getElementById('exp-name').value.trim();
       const amount = +document.getElementById('exp-amount').value;
-      if (!name || amount < 0 || !activeExpenseTarget) return;
-      addExpense(activeExpenseTarget.categoryId, name, amount);
+      const note = document.getElementById('exp-note').value.trim();
+      const recurring = document.getElementById('exp-recurring').checked;
+      if (!name || amount < 0) return;
+      const { categoryId, expenseId } = activeExpenseTarget;
+      if (expenseId) {
+        updateExpense(categoryId, expenseId, { name, amount: +amount, note, recurring });
+      } else {
+        addExpense(categoryId, { name, amount, note, recurring });
+      }
       activeExpenseTarget = null;
       closeAllModals();
     });
 
-    // Income form
+    document.getElementById('exp-delete-btn').addEventListener('click', () => {
+      if (!activeExpenseTarget || !activeExpenseTarget.expenseId) return;
+      const { categoryId, expenseId } = activeExpenseTarget;
+      activeExpenseTarget = null;
+      closeAllModals();
+      deleteExpense(categoryId, expenseId);
+    });
+
+    // Income form (add OR edit)
     document.getElementById('income-form').addEventListener('submit', (e) => {
       e.preventDefault();
       const name = document.getElementById('inc-name').value.trim();
       const amount = +document.getElementById('inc-amount').value;
+      const note = document.getElementById('inc-note').value.trim();
+      const recurring = document.getElementById('inc-recurring').checked;
       if (!name || amount < 0) return;
-      addIncome(name, amount);
+      if (editingIncomeId) {
+        updateIncome(editingIncomeId, { name, amount: +amount, note, recurring });
+      } else {
+        addIncome({ name, amount, note, recurring });
+      }
+      editingIncomeId = null;
       closeAllModals();
+    });
+
+    document.getElementById('inc-delete-btn').addEventListener('click', () => {
+      if (!editingIncomeId) return;
+      const id = editingIncomeId;
+      editingIncomeId = null;
+      closeAllModals();
+      removeIncome(id);
+      toast('Income removed', 'info');
     });
 
     // Confirm modal
