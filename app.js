@@ -15,8 +15,37 @@ import { firebaseConfig } from './firebase-config.js';
   const HH_ADJ = ['mint', 'cobalt', 'crimson', 'amber', 'lilac', 'jade', 'frost', 'velvet', 'neon', 'solar', 'plum', 'coral', 'opal', 'rose', 'sage'];
   const HH_NOUN = ['fox', 'tiger', 'otter', 'finch', 'orca', 'lynx', 'wren', 'koi', 'badger', 'falcon', 'panda', 'moth', 'crane', 'sloth', 'puma'];
 
-  const EMOJI_OPTIONS = ['🛒', '🍔', '🏠', '🚗', '🎮', '✈️', '👕', '💊', '📚', '💡', '🎬', '☕', '🐕', '🎁', '💼', '🏋️', '✂️', '🎵', '🍷', '📱'];
-  const COLOR_OPTIONS = ['#7c5cff', '#00e0ff', '#ff5cf3', '#2bd99f', '#ffb648', '#ff4d6d', '#ff7a3c', '#5cffb1', '#5c8aff', '#c95cff'];
+  const EMOJI_OPTIONS = [
+    // Food & dining
+    '🛒', '🥦', '🍔', '🍽️', '☕', '🍷', '🍕',
+    // Home
+    '🏠', '💡', '🧹', '🌱', '🔧', '🛋️',
+    // Transport
+    '🚗', '⛽', '🚌', '✈️', '🅿️',
+    // Kids & education
+    '👶', '🧸', '🎓', '📚', '✏️',
+    // Shopping & clothes
+    '👕', '🛍️', '💍',
+    // Health & beauty
+    '💊', '🏥', '💄', '💇',
+    // Entertainment & hobbies
+    '🎮', '🎬', '📺', '🎵', '⚽', '🏋️', '🎨',
+    // Pets
+    '🐕', '🐾',
+    // Gifts & holidays
+    '🎁', '❤️', '🎄',
+    // Work & tech
+    '💼', '💻', '📱',
+    // Finance & bills
+    '🏦', '🧾', '💸', '☂️'
+  ];
+  const COLOR_OPTIONS = [
+    '#6366f1', '#818cf8', '#3b82f6', '#0ea5e9',
+    '#06b6d4', '#14b8a6', '#10b981', '#84cc16',
+    '#eab308', '#f59e0b', '#f97316', '#ef4444',
+    '#f43f5e', '#ec4899', '#d946ef', '#a855f7',
+    '#8b5cf6', '#64748b'
+  ];
 
   // ---------- State ----------
   /**
@@ -921,6 +950,41 @@ import { firebaseConfig } from './firebase-config.js';
     });
   }
 
+  // ---------- Theme (dark / light) ----------
+  const THEME_KEY = 'budget-quest:theme';
+
+  function preferredTheme() {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === 'light' || saved === 'dark') return saved;
+    return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
+  function applyTheme(theme) {
+    document.documentElement.dataset.theme = theme;
+    const tc = document.querySelector('meta[name="theme-color"]');
+    if (tc) tc.content = theme === 'dark' ? '#0e0e11' : '#6366f1';
+    const btn = document.getElementById('theme-toggle');
+    if (btn) {
+      btn.textContent = theme === 'dark' ? '☀️' : '🌙';
+      btn.title = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+    }
+  }
+
+  function toggleTheme() {
+    const next = (document.documentElement.dataset.theme === 'dark') ? 'light' : 'dark';
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  }
+
+  function setupTheme() {
+    applyTheme(preferredTheme());
+    document.getElementById('theme-toggle').addEventListener('click', toggleTheme);
+    // Track system preference changes only when user hasn't picked explicitly.
+    matchMedia('(prefers-color-scheme: dark)').addEventListener('change', (e) => {
+      if (!localStorage.getItem(THEME_KEY)) applyTheme(e.matches ? 'dark' : 'light');
+    });
+  }
+
   // ---------- PWA install + offline ----------
   let deferredInstall = null;
 
@@ -984,6 +1048,7 @@ import { firebaseConfig } from './firebase-config.js';
 
   // ---------- Boot ----------
   function boot() {
+    setupTheme();
     bindEvents();
     render();
     setSyncStatus('local');

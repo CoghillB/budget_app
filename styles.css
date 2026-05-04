@@ -10,6 +10,7 @@
   --bg-2: #f5f0fa;        /* faint lavender */
   --surface: #ffffff;
   --surface-2: #fafafa;
+  --topbar-bg: rgba(255, 255, 255, 0.78);
   --ink: #1f2937;         /* dark slate */
   --ink-dim: #475569;
   --muted: #94a3b8;
@@ -25,6 +26,35 @@
   --shadow: 0 6px 18px rgba(15, 23, 42, 0.07), 0 1px 3px rgba(15, 23, 42, 0.04);
   --shadow-lg: 0 16px 40px rgba(15, 23, 42, 0.12), 0 4px 10px rgba(15, 23, 42, 0.06);
   --radius: 16px;
+  --bg-corner-1: #ffe4e9;
+  --bg-corner-2: #e0f2fe;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg-0: #0e0e11;
+  --bg-1: #17171b;
+  --bg-2: #1c1c22;
+  --surface: #1c1c20;
+  --surface-2: #232328;
+  --topbar-bg: rgba(20, 20, 25, 0.78);
+  --ink: #f4f4f5;
+  --ink-dim: #a1a1aa;
+  --muted: #71717a;
+  --line: rgba(255, 255, 255, 0.08);
+  --line-strong: rgba(255, 255, 255, 0.16);
+  --accent: #818cf8;       /* slightly lighter indigo for contrast */
+  --accent-2: #fb7185;     /* lighter rose */
+  --accent-3: #fbbf24;
+  --good: #34d399;
+  --warn: #fbbf24;
+  --bad: #f87171;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow: 0 6px 18px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.35);
+  --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.6), 0 4px 10px rgba(0, 0, 0, 0.4);
+  --bg-corner-1: rgba(129, 140, 248, 0.18);
+  --bg-corner-2: rgba(244, 63, 94, 0.14);
+  color-scheme: dark;
 }
 
 * {
@@ -70,7 +100,7 @@ body {
   background-color: var(--bg-0);
 }
 
-/* Soft warm gradient — no neon, no cosmic glow. */
+/* Soft warm gradient backdrop. Corner colors flip with theme. */
 body::before {
   content: '';
   position: fixed;
@@ -78,9 +108,10 @@ body::before {
   z-index: -2;
   pointer-events: none;
   background:
-    radial-gradient(900px 600px at 90% -10%, #ffe4e9 0%, transparent 60%),
-    radial-gradient(800px 600px at -10% 110%, #e0f2fe 0%, transparent 55%),
+    radial-gradient(900px 600px at 90% -10%, var(--bg-corner-1) 0%, transparent 60%),
+    radial-gradient(800px 600px at -10% 110%, var(--bg-corner-2) 0%, transparent 55%),
     linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 100%);
+  transition: background 0.3s ease;
 }
 
 #confetti-layer {
@@ -108,10 +139,11 @@ main {
   flex-direction: column;
   gap: 12px;
   padding: 14px 24px 16px;
-  background: rgba(255, 255, 255, 0.78);
+  background: var(--topbar-bg);
   backdrop-filter: saturate(180%) blur(20px);
   -webkit-backdrop-filter: saturate(180%) blur(20px);
   border-bottom: 1px solid var(--line);
+  transition: background 0.3s ease, border-color 0.3s ease;
 }
 
 .topbar-row {
@@ -256,17 +288,17 @@ main {
 }
 
 .pill-btn.pill-accent {
-  background: color-mix(in srgb, var(--accent) 10%, white);
+  background: color-mix(in srgb, var(--accent) 14%, var(--surface));
   border-color: color-mix(in srgb, var(--accent) 35%, transparent);
   color: var(--accent);
 }
 .pill-btn.pill-accent:hover {
-  background: color-mix(in srgb, var(--accent) 16%, white);
+  background: color-mix(in srgb, var(--accent) 22%, var(--surface));
   border-color: color-mix(in srgb, var(--accent) 50%, transparent);
 }
 
 .pill-btn.pill-danger:hover {
-  background: color-mix(in srgb, var(--bad) 9%, white);
+  background: color-mix(in srgb, var(--bad) 12%, var(--surface));
   border-color: color-mix(in srgb, var(--bad) 40%, transparent);
   color: var(--bad);
 }
@@ -312,7 +344,7 @@ main {
 .ghost-btn:active { transform: scale(0.96); }
 
 .ghost-btn.delete-btn:hover {
-  background: color-mix(in srgb, var(--bad) 8%, white);
+  background: color-mix(in srgb, var(--bad) 12%, var(--surface));
   border-color: color-mix(in srgb, var(--bad) 35%, transparent);
   color: var(--bad);
 }
@@ -391,7 +423,7 @@ main {
   width: 46px; height: 46px;
   display: grid; place-items: center;
   border-radius: 14px;
-  background: color-mix(in srgb, var(--card-glow) 14%, white);
+  background: color-mix(in srgb, var(--card-glow) 18%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--card-glow) 22%, transparent);
   flex-shrink: 0;
 }
@@ -444,7 +476,7 @@ main {
   align-items: center;
   padding: 12px 14px;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--good) 8%, white);
+  background: color-mix(in srgb, var(--good) 14%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--good) 25%, transparent);
   animation: pop-in 0.3s ease backwards;
 }
@@ -525,7 +557,7 @@ main {
   width: 42px; height: 42px;
   display: grid; place-items: center;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--cat-color, var(--accent)) 14%, white);
+  background: color-mix(in srgb, var(--cat-color, var(--accent)) 18%, var(--surface));
   border: 1px solid color-mix(in srgb, var(--cat-color, var(--accent)) 25%, transparent);
 }
 .cat-title {
@@ -579,7 +611,7 @@ main {
   border-radius: 999px;
   background: linear-gradient(90deg,
     var(--cat-color, var(--accent)),
-    color-mix(in srgb, var(--cat-color, var(--accent)) 70%, white));
+    color-mix(in srgb, var(--cat-color, var(--accent)) 80%, var(--accent)));
   transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1), background 0.3s ease;
 }
 .bar.warn .bar-fill {
@@ -748,7 +780,7 @@ main {
 }
 .emoji-grid button:hover { background: var(--surface); transform: scale(1.08); }
 .emoji-grid button.active {
-  background: color-mix(in srgb, var(--accent) 14%, white);
+  background: color-mix(in srgb, var(--accent) 18%, var(--surface));
   border-color: var(--accent);
   box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 18%, transparent);
 }
@@ -756,7 +788,7 @@ main {
 .color-grid button {
   width: 28px; height: 28px;
   border-radius: 50%;
-  border: 2px solid white;
+  border: 2px solid var(--surface);
   outline: 1px solid var(--line);
   cursor: pointer;
   transition: all 0.15s ease;
@@ -812,7 +844,7 @@ main {
 }
 .history-item.current {
   border-color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 5%, white);
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface));
 }
 .history-month { font-weight: 700; font-size: 14px; color: var(--ink); }
 .history-stats { font-size: 11px; color: var(--muted); margin-top: 6px; }
