@@ -1078,7 +1078,7 @@ import { firebaseConfig } from './firebase-config.js';
     document.getElementById('history-btn').addEventListener('click', openHistoryModal);
 
     // Add buttons
-    document.getElementById('add-income-btn').addEventListener('click', openIncomeModal);
+    document.getElementById('add-income-btn').addEventListener('click', () => openIncomeModal());
     document.getElementById('add-category-btn').addEventListener('click', () => openCategoryModal());
 
     // Modal close-on-backdrop / × / Esc
