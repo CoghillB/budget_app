@@ -12,6 +12,19 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="default" />
   <meta name="apple-mobile-web-app-title" content="Budget Quest" />
   <link rel="stylesheet" href="styles.css" />
+  <script>
+    // Set theme before first paint to avoid a light-mode flash.
+    (function () {
+      try {
+        var saved = localStorage.getItem('budget-quest:theme');
+        var theme = (saved === 'light' || saved === 'dark') ? saved
+          : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.dataset.theme = theme;
+        var tc = document.querySelector('meta[name="theme-color"]');
+        if (tc) tc.content = theme === 'dark' ? '#0e0e11' : '#6366f1';
+      } catch (e) {}
+    })();
+  </script>
 </head>
 <body>
   <div id="confetti-layer" aria-hidden="true"></div>
@@ -27,6 +40,7 @@
           <span class="pill-icon">📱</span>
           <span class="pill-label">Install</span>
         </button>
+        <button id="theme-toggle" class="icon-btn" title="Toggle dark mode" aria-label="Toggle theme">🌙</button>
         <button id="sync-indicator" class="sync-indicator local" title="Sync settings">
           <span class="sync-dot"></span>
           <span class="sync-label">Local</span>
