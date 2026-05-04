@@ -578,9 +578,40 @@ main {
 }
 .cat-actions {
   display: flex;
-  gap: 4px;
+  align-items: center;
+  gap: 6px;
 }
-.cat-actions button {
+
+/* Primary action — clearly the most clickable thing on the card,
+   tinted with the category's own color so it feels "owned" by it. */
+.cat-add-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 7px 12px 7px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--cat-color, var(--accent)) 16%, var(--surface));
+  border: 1px solid color-mix(in srgb, var(--cat-color, var(--accent)) 38%, transparent);
+  color: var(--cat-color, var(--accent));
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.1px;
+  cursor: pointer;
+  transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.cat-add-btn:hover {
+  background: color-mix(in srgb, var(--cat-color, var(--accent)) 26%, var(--surface));
+  border-color: color-mix(in srgb, var(--cat-color, var(--accent)) 55%, transparent);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--cat-color, var(--accent)) 25%, transparent);
+}
+.cat-add-btn:active { transform: scale(0.96); }
+.cat-add-btn .plus { font-size: 14px; line-height: 1; font-weight: 700; }
+.cat-add-btn .cat-add-label { line-height: 1; }
+
+/* Secondary actions — small, subtle, only there when you need them */
+.cat-icon-btn {
   background: transparent;
   border: 1px solid transparent;
   color: var(--ink-dim);
@@ -588,12 +619,19 @@ main {
   border-radius: 8px;
   cursor: pointer;
   font-size: 13px;
-  transition: all 0.15s ease;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, transform 0.12s ease;
 }
-.cat-actions button:hover {
+.cat-icon-btn:hover {
   background: var(--bg-1);
   color: var(--ink);
   border-color: var(--line);
+}
+.cat-icon-btn:active { transform: scale(0.92); }
+
+/* On narrow phones, drop the label so the button doesn't crowd the title */
+@media (max-width: 420px) {
+  .cat-add-btn .cat-add-label { display: none; }
+  .cat-add-btn { padding: 7px 10px; }
 }
 
 /* progress bar */

@@ -372,9 +372,11 @@ import { firebaseConfig } from './firebase-config.js';
         </div>
         <div class="cat-actions">
           ${ro ? '' : `
-            <button data-act="add-expense" title="Add expense">＋</button>
-            <button data-act="edit" title="Edit">✎</button>
-            <button data-act="delete" title="Delete">🗑</button>
+            <button class="cat-add-btn" data-act="add-expense" title="Add expense">
+              <span class="plus">＋</span><span class="cat-add-label">Expense</span>
+            </button>
+            <button class="cat-icon-btn" data-act="edit" title="Edit category" aria-label="Edit category">✎</button>
+            <button class="cat-icon-btn" data-act="delete" title="Delete category" aria-label="Delete category">🗑</button>
           `}
         </div>
       </div>
