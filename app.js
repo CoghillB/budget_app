@@ -51,13 +51,13 @@ import { firebaseConfig } from './firebase-config.js';
   /**
    * data shape:
    * {
-   *   currentMonth: "YYYY-MM",
-   *   months: {
-   *     "YYYY-MM": {
-   *       income: [{id, name, amount}],
+   *   currentPeriod: "YYYY-MM-DD",       // start date of the active pay period
+   *   periods: {
+   *     "YYYY-MM-DD": {                  // each period keyed by its start date
+   *       income: [{id, name, amount, note, recurring}],
    *       categories: [{
    *         id, name, limit, color, icon,
-   *         expenses: [{id, name, amount}]
+   *         expenses: [{id, name, amount, note, recurring}]
    *       }]
    *     }
    *   }
@@ -68,20 +68,46 @@ import { firebaseConfig } from './firebase-config.js';
   let activeExpenseTarget = null;     // {categoryId, expenseId?} — expenseId set means edit mode
   let editingIncomeId = null;         // income modal: id when editing, null when adding
   let listingCategoryId = null;       // category whose all-expenses modal is open
-  let viewingMonth = null;            // when viewing historical (read-only)
+  let viewingPeriod = null;            // when viewing a non-active period (read-only)
   let confirmAction = null;
   let syncState = 'local';            // local | connecting | synced | syncing | offline | error
   let suspendPush = false;            // true while applying a remote update
 
   /**
-   * One-time migration: legacy categories may have a `subs` array with
-   * their own expenses. Flatten those into the parent's expenses and drop
-   * the subs field so existing users don't lose data.
+   * One-time migrations:
+   * 1. Flatten legacy sub-budget expenses into the parent category.
+   * 2. Convert older bucket names ('months' or short-lived 'cycles')
+   *    over to the current 'periods' shape, with date-based keys
+   *    (YYYY-MM-DD). Legacy month keys ('YYYY-MM') assume a 1st-of-month
+   *    start so every expense stays in the right bucket.
    */
   function migrate(d) {
-    if (!d || !d.months) return d;
-    for (const key of Object.keys(d.months)) {
-      const m = d.months[key];
+    if (!d) return d;
+    // months → periods
+    if (d.months && !d.periods) {
+      d.periods = {};
+      for (const key of Object.keys(d.months)) {
+        const dateKey = key.length === 7 ? `${key}-01` : key;
+        d.periods[dateKey] = d.months[key];
+      }
+      delete d.months;
+    }
+    // cycles → periods (in case someone tested an interim build)
+    if (d.cycles && !d.periods) {
+      d.periods = d.cycles;
+      delete d.cycles;
+    }
+    if (d.currentMonth && !d.currentPeriod) {
+      d.currentPeriod = d.currentMonth.length === 7 ? `${d.currentMonth}-01` : d.currentMonth;
+      delete d.currentMonth;
+    }
+    if (d.currentCycle && !d.currentPeriod) {
+      d.currentPeriod = d.currentCycle;
+      delete d.currentCycle;
+    }
+    // Sub-budget flattening
+    for (const key of Object.keys(d.periods || {})) {
+      const m = d.periods[key];
       for (const cat of (m.categories || [])) {
         if (Array.isArray(cat.subs) && cat.subs.length) {
           cat.expenses = cat.expenses || [];
@@ -103,11 +129,11 @@ import { firebaseConfig } from './firebase-config.js';
       const raw = localStorage.getItem(STORAGE_KEY);
       if (raw) return JSON.parse(raw);
     } catch (e) { console.warn('Failed to load saved data', e); }
-    const month = monthKey(new Date());
+    const start = todayPeriodKey();
     return {
-      currentMonth: month,
-      months: {
-        [month]: { income: [], categories: [] }
+      currentPeriod: start,
+      periods: {
+        [start]: { income: [], categories: [] }
       }
     };
   }
@@ -124,14 +150,41 @@ import { firebaseConfig } from './firebase-config.js';
   // ---------- Helpers ----------
   function uid() { return Math.random().toString(36).slice(2, 10); }
 
-  function monthKey(d) {
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  function periodKey(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   }
 
-  function monthLabel(key) {
-    const [y, m] = key.split('-').map(Number);
-    const d = new Date(y, m - 1, 1);
-    return d.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+  function todayPeriodKey() {
+    return periodKey(new Date());
+  }
+
+  function parsePeriodKey(key) {
+    const [y, m, d] = key.split('-').map(Number);
+    return new Date(y, m - 1, d);
+  }
+
+  /**
+   * Render a period's start/end date range as a label.
+   * The end date is the day before the next chronological period starts;
+   * the chronologically-latest period shows "Apr 24 – ongoing".
+   */
+  function periodLabel(key) {
+    const keys = Object.keys(data.periods).sort();
+    const idx = keys.indexOf(key);
+    const start = parsePeriodKey(key);
+    const startStr = start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+
+    if (idx === -1 || idx === keys.length - 1) {
+      return `${startStr} – ongoing`;
+    }
+    const nextStart = parsePeriodKey(keys[idx + 1]);
+    const end = new Date(nextStart);
+    end.setDate(end.getDate() - 1);
+    const endStr = end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+    if (start.getFullYear() !== end.getFullYear()) {
+      return `${startStr} ${start.getFullYear()} – ${endStr} ${end.getFullYear()}`;
+    }
+    return `${startStr} – ${endStr}`;
   }
 
   function fmt(n) {
@@ -144,32 +197,32 @@ import { firebaseConfig } from './firebase-config.js';
     });
   }
 
-  function getMonth(key = activeMonth()) {
-    if (!data.months[key]) data.months[key] = { income: [], categories: [] };
-    return data.months[key];
+  function getPeriod(key = activePeriod()) {
+    if (!data.periods[key]) data.periods[key] = { income: [], categories: [] };
+    return data.periods[key];
   }
 
-  function activeMonth() {
-    return viewingMonth || data.currentMonth;
+  function activePeriod() {
+    return viewingPeriod || data.currentPeriod;
   }
 
   function isReadOnly() {
-    return viewingMonth !== null && viewingMonth !== data.currentMonth;
+    return viewingPeriod !== null && viewingPeriod !== data.currentPeriod;
   }
 
   function categorySpent(cat) {
     return (cat.expenses || []).reduce((s, e) => s + (+e.amount || 0), 0);
   }
 
-  function totalIncome(m = getMonth()) {
+  function totalIncome(m = getPeriod()) {
     return (m.income || []).reduce((s, i) => s + (+i.amount || 0), 0);
   }
 
-  function totalBudget(m = getMonth()) {
+  function totalBudget(m = getPeriod()) {
     return (m.categories || []).reduce((s, c) => s + (+c.limit || 0), 0);
   }
 
-  function totalSpent(m = getMonth()) {
+  function totalSpent(m = getPeriod()) {
     return (m.categories || []).reduce((s, c) => s + categorySpent(c), 0);
   }
 
@@ -183,7 +236,7 @@ import { firebaseConfig } from './firebase-config.js';
   }
 
   function renderChart() {
-    const m = getMonth();
+    const m = getPeriod();
     const section = document.getElementById('breakdown-section');
     const container = document.getElementById('chart-container');
     const slices = (m.categories || [])
@@ -243,7 +296,7 @@ import { firebaseConfig } from './firebase-config.js';
         <div class="donut-center">
           <div>
             <div class="donut-total">${fmt(total)}</div>
-            <div class="donut-label">Spent this month</div>
+            <div class="donut-label">Spent this period</div>
           </div>
         </div>
       </div>
@@ -258,9 +311,9 @@ import { firebaseConfig } from './firebase-config.js';
   }
 
   function renderHeader() {
-    const key = activeMonth();
-    const isCurrent = key === data.currentMonth;
-    document.getElementById('month-name').textContent = monthLabel(key);
+    const key = activePeriod();
+    const isCurrent = key === data.currentPeriod;
+    document.getElementById('month-name').textContent = periodLabel(key);
     const status = document.getElementById('month-status');
     status.textContent = isCurrent ? 'Active' : 'Viewing';
     status.classList.toggle('viewing', !isCurrent);
@@ -282,7 +335,7 @@ import { firebaseConfig } from './firebase-config.js';
   }
 
   function renderDashboard() {
-    const m = getMonth();
+    const m = getPeriod();
     const income = totalIncome(m);
     const budget = totalBudget(m);
     const spent = totalSpent(m);
@@ -297,7 +350,7 @@ import { firebaseConfig } from './firebase-config.js';
   }
 
   function renderIncome() {
-    const m = getMonth();
+    const m = getPeriod();
     const list = document.getElementById('income-list');
     list.innerHTML = '';
     if (!m.income || m.income.length === 0) {
@@ -333,7 +386,7 @@ import { firebaseConfig } from './firebase-config.js';
   }
 
   function renderCategories() {
-    const m = getMonth();
+    const m = getPeriod();
     const grid = document.getElementById('categories-grid');
     const empty = document.getElementById('empty-state');
     grid.innerHTML = '';
@@ -440,7 +493,7 @@ import { firebaseConfig } from './firebase-config.js';
   // ---------- Mutations ----------
   function addIncome({ name, amount, note, recurring }) {
     if (isReadOnly()) return;
-    const m = getMonth();
+    const m = getPeriod();
     m.income.push({
       id: uid(),
       name,
@@ -456,7 +509,7 @@ import { firebaseConfig } from './firebase-config.js';
 
   function updateIncome(id, patch) {
     if (isReadOnly()) return;
-    const m = getMonth();
+    const m = getPeriod();
     const inc = (m.income || []).find(i => i.id === id);
     if (!inc) return;
     Object.assign(inc, patch);
@@ -466,7 +519,7 @@ import { firebaseConfig } from './firebase-config.js';
 
   function removeIncome(id) {
     if (isReadOnly()) return;
-    const m = getMonth();
+    const m = getPeriod();
     m.income = m.income.filter(i => i.id !== id);
     save();
     render();
@@ -474,7 +527,7 @@ import { firebaseConfig } from './firebase-config.js';
 
   function addCategory({ name, limit, color, icon }) {
     if (isReadOnly()) return;
-    const m = getMonth();
+    const m = getPeriod();
     m.categories.push({
       id: uid(), name, limit: +limit, color, icon,
       expenses: []
@@ -485,7 +538,7 @@ import { firebaseConfig } from './firebase-config.js';
   }
 
   function updateCategory(id, patch) {
-    const m = getMonth();
+    const m = getPeriod();
     const c = m.categories.find(c => c.id === id);
     if (!c) return;
     Object.assign(c, patch);
@@ -494,7 +547,7 @@ import { firebaseConfig } from './firebase-config.js';
   }
 
   function deleteCategory(id) {
-    const m = getMonth();
+    const m = getPeriod();
     const cat = m.categories.find(c => c.id === id);
     m.categories = m.categories.filter(c => c.id !== id);
     save();
@@ -504,7 +557,7 @@ import { firebaseConfig } from './firebase-config.js';
 
   function addExpense(categoryId, { name, amount, note, recurring }) {
     if (isReadOnly()) return;
-    const m = getMonth();
+    const m = getPeriod();
     const cat = m.categories.find(c => c.id === categoryId);
     if (!cat) return;
     cat.expenses = cat.expenses || [];
@@ -531,7 +584,7 @@ import { firebaseConfig } from './firebase-config.js';
 
   function updateExpense(categoryId, expenseId, patch) {
     if (isReadOnly()) return;
-    const m = getMonth();
+    const m = getPeriod();
     const cat = m.categories.find(c => c.id === categoryId);
     if (!cat) return;
     const exp = (cat.expenses || []).find(e => e.id === expenseId);
@@ -543,7 +596,7 @@ import { firebaseConfig } from './firebase-config.js';
 
   function deleteExpense(categoryId, expenseId) {
     if (isReadOnly()) return;
-    const m = getMonth();
+    const m = getPeriod();
     const cat = m.categories.find(c => c.id === categoryId);
     if (!cat) return;
     cat.expenses = (cat.expenses || []).filter(e => e.id !== expenseId);
@@ -552,26 +605,22 @@ import { firebaseConfig } from './firebase-config.js';
     toast('Expense removed', 'info');
   }
 
-  function startNewMonth() {
-    const today = new Date();
-    let key = monthKey(today);
-    // If a month with that key already exists, append a sequence
-    if (data.months[key] && key === data.currentMonth) {
-      // Roll forward by 1 month
-      const [y, m] = key.split('-').map(Number);
-      const next = new Date(y, m, 1); // month is 0-based; passing m moves to next month
-      key = monthKey(next);
-    }
-    while (data.months[key]) {
-      const [y, m] = key.split('-').map(Number);
-      const next = new Date(y, m, 1);
-      key = monthKey(next);
+  function startNewPeriod() {
+    // The new period starts today (when the user actually got paid). If
+    // they click twice in the same day, roll forward a day at a time
+    // until we find an unused date — clicking twice the same day is rare
+    // but we don't want to silently lose the second click.
+    const d = new Date();
+    let key = periodKey(d);
+    while (data.periods[key]) {
+      d.setDate(d.getDate() + 1);
+      key = periodKey(d);
     }
 
     // Carry over category structure with reset spending — but recurring
-    // expenses get auto-copied into the new month so things like rent and
-    // subscriptions don't have to be re-entered every month.
-    const prev = data.months[data.currentMonth];
+    // expenses get auto-copied into the new period so things like rent and
+    // subscriptions don't have to be re-entered every period.
+    const prev = data.periods[data.currentPeriod];
     const carriedCategories = (prev?.categories || []).map(c => ({
       id: uid(),
       name: c.name,
@@ -588,15 +637,15 @@ import { firebaseConfig } from './firebase-config.js';
       .filter(i => i.recurring)
       .map(i => ({ id: uid(), name: i.name, amount: i.amount, note: i.note || '', recurring: true }));
 
-    data.months[key] = { income: carriedIncome, categories: carriedCategories };
-    data.currentMonth = key;
-    viewingMonth = null;
+    data.periods[key] = { income: carriedIncome, categories: carriedCategories };
+    data.currentPeriod = key;
+    viewingPeriod = null;
     save();
     render();
     fireConfetti();
     const recurringCount = carriedIncome.length + carriedCategories.reduce((s, c) => s + c.expenses.length, 0);
     const note = recurringCount > 0 ? ` (${recurringCount} recurring auto-added 🔁)` : '';
-    toast(`New month started: ${monthLabel(key)}${note} 🚀`, 'success');
+    toast(`New period started: ${periodLabel(key)}${note} 🚀`, 'success');
   }
 
   /**
@@ -605,14 +654,14 @@ import { firebaseConfig } from './firebase-config.js';
    * deleted, so nothing is destroyed by mistake. The user can then delete it
    * separately if it was an empty/accidental month.
    */
-  function reactivateMonth() {
-    if (!viewingMonth || viewingMonth === data.currentMonth) return;
-    const newActive = viewingMonth;
-    data.currentMonth = newActive;
-    viewingMonth = null;
+  function reactivatePeriod() {
+    if (!viewingPeriod || viewingPeriod === data.currentPeriod) return;
+    const newActive = viewingPeriod;
+    data.currentPeriod = newActive;
+    viewingPeriod = null;
     save();
     render();
-    toast(`${monthLabel(newActive)} is active again 🔓`, 'success');
+    toast(`${periodLabel(newActive)} is active again 🔓`, 'success');
   }
 
   /**
@@ -621,15 +670,15 @@ import { firebaseConfig } from './firebase-config.js';
    * definitions. Useful for "I messed up, start this month over without
    * archiving it" or for cleaning up an accidental new month.
    */
-  function clearMonth() {
-    const key = activeMonth();
-    const m = data.months[key];
+  function clearPeriod() {
+    const key = activePeriod();
+    const m = data.periods[key];
     if (!m) return;
     m.income = [];
     (m.categories || []).forEach(c => { c.expenses = []; });
     save();
     render();
-    toast(`Cleared ${monthLabel(key)} 🧹`, 'info');
+    toast(`Cleared ${periodLabel(key)} 🧹`, 'info');
   }
 
   // ---------- Modals ----------
@@ -644,7 +693,7 @@ import { firebaseConfig } from './firebase-config.js';
     const colorInput = document.getElementById('cat-color');
 
     if (id) {
-      const cat = getMonth().categories.find(c => c.id === id);
+      const cat = getPeriod().categories.find(c => c.id === id);
       title.textContent = 'Edit Category';
       nameInput.value = cat.name;
       limitInput.value = cat.limit;
@@ -699,7 +748,7 @@ import { firebaseConfig } from './firebase-config.js';
 
   function openExpenseModal(categoryId, expenseId) {
     if (isReadOnly()) return;
-    const cat = getMonth().categories.find(c => c.id === categoryId);
+    const cat = getPeriod().categories.find(c => c.id === categoryId);
     if (!cat) return;
     activeExpenseTarget = { categoryId, expenseId: expenseId || null };
 
@@ -748,7 +797,7 @@ import { firebaseConfig } from './firebase-config.js';
     const deleteBtn = document.getElementById('inc-delete-btn');
 
     if (incomeId) {
-      const inc = (getMonth().income || []).find(i => i.id === incomeId);
+      const inc = (getPeriod().income || []).find(i => i.id === incomeId);
       if (!inc) return;
       title.textContent = 'Edit Income';
       nameEl.value = inc.name || '';
@@ -772,7 +821,7 @@ import { firebaseConfig } from './firebase-config.js';
 
   function openExpenseListModal(categoryId) {
     listingCategoryId = categoryId;
-    const cat = getMonth().categories.find(c => c.id === categoryId);
+    const cat = getPeriod().categories.find(c => c.id === categoryId);
     if (!cat) return;
     const title = document.getElementById('expense-list-title');
     const body = document.getElementById('expense-list-body');
@@ -815,16 +864,16 @@ import { firebaseConfig } from './firebase-config.js';
   function openHistoryModal() {
     const list = document.getElementById('history-list');
     list.innerHTML = '';
-    const keys = Object.keys(data.months).sort().reverse();
+    const keys = Object.keys(data.periods).sort().reverse();
     keys.forEach(k => {
-      const m = data.months[k];
+      const m = data.periods[k];
       const inc = totalIncome(m);
       const sp = totalSpent(m);
       const saved = inc - sp;
       const item = document.createElement('div');
-      item.className = 'history-item' + (k === activeMonth() ? ' current' : '');
+      item.className = 'history-item' + (k === activePeriod() ? ' current' : '');
       item.innerHTML = `
-        <div class="history-month">${monthLabel(k)}${k === data.currentMonth ? ' • Active' : ''}</div>
+        <div class="history-month">${periodLabel(k)}${k === data.currentPeriod ? ' • Active' : ''}</div>
         <div class="history-stats">
           <div><span>Income</span><span>${fmt(inc)}</span></div>
           <div><span>Spent</span><span>${fmt(sp)}</span></div>
@@ -832,15 +881,15 @@ import { firebaseConfig } from './firebase-config.js';
         </div>
       `;
       item.addEventListener('click', () => {
-        viewingMonth = k === data.currentMonth ? null : k;
+        viewingPeriod = k === data.currentPeriod ? null : k;
         document.getElementById('history-modal').hidden = true;
         render();
-        toast(`Viewing ${monthLabel(k)}${k === data.currentMonth ? ' (active)' : ' (snapshot)'}`, 'info');
+        toast(`Viewing ${periodLabel(k)}${k === data.currentPeriod ? ' (active)' : ' (snapshot)'}`, 'info');
       });
       list.appendChild(item);
     });
     if (keys.length === 0) {
-      list.innerHTML = '<p class="muted">No months yet.</p>';
+      list.innerHTML = '<p class="muted">No periods yet.</p>';
     }
     document.getElementById('history-modal').hidden = false;
   }
@@ -977,7 +1026,7 @@ import { firebaseConfig } from './firebase-config.js';
     if (!remoteData) return;
     suspendPush = true;
     data = remoteData;
-    if (viewingMonth && !data.months[viewingMonth]) viewingMonth = null;
+    if (viewingPeriod && !data.periods[viewingPeriod]) viewingPeriod = null;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     suspendPush = false;
     render();
@@ -1052,30 +1101,30 @@ import { firebaseConfig } from './firebase-config.js';
   function bindEvents() {
     // Month switcher
     document.getElementById('prev-month').addEventListener('click', () => {
-      const keys = Object.keys(data.months).sort();
-      const cur = activeMonth();
+      const keys = Object.keys(data.periods).sort();
+      const cur = activePeriod();
       const idx = keys.indexOf(cur);
       if (idx > 0) {
-        viewingMonth = keys[idx - 1] === data.currentMonth ? null : keys[idx - 1];
+        viewingPeriod = keys[idx - 1] === data.currentPeriod ? null : keys[idx - 1];
         render();
       }
     });
     document.getElementById('next-month').addEventListener('click', () => {
-      const keys = Object.keys(data.months).sort();
-      const cur = activeMonth();
+      const keys = Object.keys(data.periods).sort();
+      const cur = activePeriod();
       const idx = keys.indexOf(cur);
       if (idx >= 0 && idx < keys.length - 1) {
-        viewingMonth = keys[idx + 1] === data.currentMonth ? null : keys[idx + 1];
+        viewingPeriod = keys[idx + 1] === data.currentPeriod ? null : keys[idx + 1];
         render();
       }
     });
     document.getElementById('reset-month').addEventListener('click', () => {
-      confirmDelete('Start a new month?', 'This locks in the current month as history and starts fresh. Your categories carry over with $0 spent.', startNewMonth);
+      confirmDelete('Start a new pay period?', 'This locks in the current period as history and starts a fresh one today. Categories carry over with $0 spent; anything marked 🔁 Recurring auto-copies in.', startNewPeriod);
     });
-    document.getElementById('unlock-month').addEventListener('click', reactivateMonth);
+    document.getElementById('unlock-month').addEventListener('click', reactivatePeriod);
     document.getElementById('clear-month').addEventListener('click', () => {
-      const label = monthLabel(activeMonth());
-      confirmDelete(`Clear ${label}?`, 'Income and all expenses for this month will be reset to zero. Your categories stay.', clearMonth);
+      const label = periodLabel(activePeriod());
+      confirmDelete(`Clear ${label}?`, 'Income and all expenses for this period will be reset to zero. Your categories stay.', clearPeriod);
     });
     document.getElementById('history-btn').addEventListener('click', openHistoryModal);
 
