@@ -6,7 +6,7 @@
  * and need fresh tokens).
  */
 
-const CACHE = 'budget-quest-v2';
+const CACHE = 'budget-quest-v3';
 const ASSETS = [
   './',
   './index.html',

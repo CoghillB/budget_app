@@ -986,7 +986,8 @@ import { firebaseConfig } from './firebase-config.js';
     } catch (e) {
       console.warn('Sync init failed', e);
       setSyncStatus('error');
-      toast('Could not start sync. Working offline.', 'error');
+      const detail = e?.code || e?.message || 'unknown';
+      toast(`Sync init failed: ${detail}`, 'error');
     }
   }
 
@@ -1002,7 +1003,7 @@ import { firebaseConfig } from './firebase-config.js';
       localStorage.setItem(HOUSEHOLD_KEY, code);
       if (remote) {
         suspendPush = true;
-        data = remote;
+        data = migrate(remote);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
         suspendPush = false;
         render();
@@ -1017,7 +1018,8 @@ import { firebaseConfig } from './firebase-config.js';
     } catch (e) {
       console.warn('joinHousehold failed', e);
       setSyncStatus('error');
-      toast('Could not join household. Try again.', 'error');
+      const detail = e?.code || e?.message || 'unknown';
+      toast(`Could not join household: ${detail}`, 'error');
       return false;
     }
   }
@@ -1025,7 +1027,9 @@ import { firebaseConfig } from './firebase-config.js';
   function applyRemote(remoteData) {
     if (!remoteData) return;
     suspendPush = true;
-    data = remoteData;
+    // Remote payloads from older clients may still use the legacy
+    // months/cycles shape — run migration before using.
+    data = migrate(remoteData);
     if (viewingPeriod && !data.periods[viewingPeriod]) viewingPeriod = null;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     suspendPush = false;
