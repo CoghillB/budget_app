@@ -164,27 +164,17 @@ import { firebaseConfig } from './firebase-config.js';
   }
 
   /**
-   * Render a period's start/end date range as a label.
-   * The end date is the day before the next chronological period starts;
-   * the chronologically-latest period shows "Apr 24 – ongoing".
+   * Render a period as its start date (the paycheck date).
+   * Earlier versions showed a "May 27 – Jun 25" range, but migrated
+   * periods inherited calendar-month boundaries that didn't correspond
+   * to actual paychecks. The start date is the only honest signal —
+   * it's the day the period began, i.e. when you got paid.
    */
   function periodLabel(key) {
-    const keys = Object.keys(data.periods).sort();
-    const idx = keys.indexOf(key);
     const start = parsePeriodKey(key);
-    const startStr = start.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-
-    if (idx === -1 || idx === keys.length - 1) {
-      return `${startStr} – ongoing`;
-    }
-    const nextStart = parsePeriodKey(keys[idx + 1]);
-    const end = new Date(nextStart);
-    end.setDate(end.getDate() - 1);
-    const endStr = end.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-    if (start.getFullYear() !== end.getFullYear()) {
-      return `${startStr} ${start.getFullYear()} – ${endStr} ${end.getFullYear()}`;
-    }
-    return `${startStr} – ${endStr}`;
+    const opts = { month: 'short', day: 'numeric' };
+    if (start.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
+    return start.toLocaleDateString(undefined, opts);
   }
 
   function fmt(n) {
