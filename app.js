@@ -164,17 +164,22 @@ import { firebaseConfig } from './firebase-config.js';
   }
 
   /**
-   * Render a period as its start date (the paycheck date).
-   * Earlier versions showed a "May 27 – Jun 25" range, but migrated
-   * periods inherited calendar-month boundaries that didn't correspond
-   * to actual paychecks. The start date is the only honest signal —
-   * it's the day the period began, i.e. when you got paid.
+   * Render a period as a roughly-4-week range starting from its
+   * paycheck date. The actual gap between paychecks isn't fixed
+   * (varies with weekends/holidays), but 28 days is a reasonable
+   * approximation and keeps every period's label honest regardless
+   * of what the next period's start happens to be.
    */
   function periodLabel(key) {
     const start = parsePeriodKey(key);
-    const opts = { month: 'short', day: 'numeric' };
-    if (start.getFullYear() !== new Date().getFullYear()) opts.year = 'numeric';
-    return start.toLocaleDateString(undefined, opts);
+    const end = new Date(start);
+    end.setDate(end.getDate() + 27); // 28-day inclusive window
+    const now = new Date().getFullYear();
+    const sOpts = { month: 'short', day: 'numeric' };
+    const eOpts = { month: 'short', day: 'numeric' };
+    if (start.getFullYear() !== now) sOpts.year = 'numeric';
+    if (end.getFullYear() !== now) eOpts.year = 'numeric';
+    return `${start.toLocaleDateString(undefined, sOpts)} – ${end.toLocaleDateString(undefined, eOpts)}`;
   }
 
   function fmt(n) {
