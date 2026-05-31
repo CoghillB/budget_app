@@ -164,22 +164,45 @@ import { firebaseConfig } from './firebase-config.js';
   }
 
   /**
-   * Render a period as a roughly-4-week range starting from its
-   * paycheck date. The actual gap between paychecks isn't fixed
-   * (varies with weekends/holidays), but 28 days is a reasonable
-   * approximation and keeps every period's label honest regardless
-   * of what the next period's start happens to be.
+   * Days elapsed from a period's start to today (whole calendar days).
+   */
+  function daysSincePeriodStart(key) {
+    const start = parsePeriodKey(key);
+    const now = new Date();
+    const startMs = new Date(start.getFullYear(), start.getMonth(), start.getDate()).getTime();
+    const nowMs = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    return Math.floor((nowMs - startMs) / 86400000);
+  }
+
+  /**
+   * A period is overdue once we're past its 28-day window. Only the active
+   * period can be "overdue" — past periods are already locked in history.
+   */
+  function isPeriodOverdue(key) {
+    return key === data.currentPeriod && daysSincePeriodStart(key) >= 28;
+  }
+
+  /**
+   * Render a period as a roughly-4-week range starting from its paycheck
+   * date. If it's the *active* period and we're past the 28-day window,
+   * flip the end to "present" so the label honestly signals "you're
+   * overdue for a reset."
    */
   function periodLabel(key) {
     const start = parsePeriodKey(key);
-    const end = new Date(start);
-    end.setDate(end.getDate() + 27); // 28-day inclusive window
     const now = new Date().getFullYear();
     const sOpts = { month: 'short', day: 'numeric' };
-    const eOpts = { month: 'short', day: 'numeric' };
     if (start.getFullYear() !== now) sOpts.year = 'numeric';
+    const startStr = start.toLocaleDateString(undefined, sOpts);
+
+    if (isPeriodOverdue(key)) {
+      return `${startStr} – present`;
+    }
+    const end = new Date(start);
+    end.setDate(end.getDate() + 27);
+    const eOpts = { month: 'short', day: 'numeric' };
     if (end.getFullYear() !== now) eOpts.year = 'numeric';
-    return `${start.toLocaleDateString(undefined, sOpts)} – ${end.toLocaleDateString(undefined, eOpts)}`;
+    return `${startStr} – ${end.toLocaleDateString(undefined, eOpts)}`;
   }
 
   function fmt(n) {
@@ -224,10 +247,26 @@ import { firebaseConfig } from './firebase-config.js';
   // ---------- Rendering ----------
   function render() {
     renderHeader();
+    renderOverdueBanner();
     renderDashboard();
     renderChart();
     renderIncome();
     renderCategories();
+  }
+
+  function renderOverdueBanner() {
+    const banner = document.getElementById('overdue-banner');
+    if (!banner) return;
+    // Only nudge on the active period — past periods being "overdue"
+    // is meaningless since they've already been replaced.
+    if (viewingPeriod || !isPeriodOverdue(data.currentPeriod)) {
+      banner.hidden = true;
+      return;
+    }
+    const days = daysSincePeriodStart(data.currentPeriod);
+    const text = document.getElementById('overdue-text');
+    text.textContent = `It's been ${days} days since your last paycheck — time to start a new pay period?`;
+    banner.hidden = false;
   }
 
   function renderChart() {
@@ -1117,9 +1156,13 @@ import { firebaseConfig } from './firebase-config.js';
         render();
       }
     });
-    document.getElementById('reset-month').addEventListener('click', () => {
-      confirmDelete('Start a new pay period?', 'This locks in the current period as history and starts a fresh one today. Categories carry over with $0 spent; anything marked 🔁 Recurring auto-copies in.', startNewPeriod);
-    });
+    const newPeriodPrompt = () => confirmDelete(
+      'Start a new pay period?',
+      'This locks in the current period as history and starts a fresh one today. Categories carry over with $0 spent; anything marked 🔁 Recurring auto-copies in.',
+      startNewPeriod
+    );
+    document.getElementById('reset-month').addEventListener('click', newPeriodPrompt);
+    document.getElementById('overdue-action').addEventListener('click', newPeriodPrompt);
     document.getElementById('unlock-month').addEventListener('click', reactivatePeriod);
     document.getElementById('clear-month').addEventListener('click', () => {
       const label = periodLabel(activePeriod());
