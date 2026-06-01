@@ -872,46 +872,6 @@ main {
 }
 
 .muted { color: var(--muted); font-size: 13px; }
-
-/* Nudge banner when the active pay period has run past its 4-week window. */
-.overdue-banner {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 12px 16px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--warn) 14%, var(--surface));
-  border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent);
-  margin: 0 0 16px;
-  animation: pop-in 0.35s cubic-bezier(0.34, 1.4, 0.64, 1) backwards;
-}
-.overdue-banner .overdue-icon {
-  font-size: 18px;
-  line-height: 1;
-}
-.overdue-banner .overdue-text {
-  flex: 1;
-  font-size: 13px;
-  color: var(--ink);
-  font-weight: 500;
-}
-.overdue-banner .ghost-btn {
-  padding: 7px 12px;
-  font-size: 12.5px;
-  background: var(--surface);
-  border-color: color-mix(in srgb, var(--warn) 45%, transparent);
-  color: var(--ink);
-  flex-shrink: 0;
-}
-.overdue-banner .ghost-btn:hover {
-  background: color-mix(in srgb, var(--warn) 12%, var(--surface));
-  border-color: color-mix(in srgb, var(--warn) 60%, transparent);
-}
-@media (max-width: 480px) {
-  .overdue-banner { flex-wrap: wrap; }
-  .overdue-banner .overdue-text { flex-basis: calc(100% - 30px); }
-  .overdue-banner .ghost-btn { width: 100%; }
-}
 .label-hint { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--muted); margin-left: 4px; }
 
 /* Checkbox row inside modals */

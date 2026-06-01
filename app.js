@@ -247,26 +247,10 @@ import { firebaseConfig } from './firebase-config.js';
   // ---------- Rendering ----------
   function render() {
     renderHeader();
-    renderOverdueBanner();
     renderDashboard();
     renderChart();
     renderIncome();
     renderCategories();
-  }
-
-  function renderOverdueBanner() {
-    const banner = document.getElementById('overdue-banner');
-    if (!banner) return;
-    // Only nudge on the active period — past periods being "overdue"
-    // is meaningless since they've already been replaced.
-    if (viewingPeriod || !isPeriodOverdue(data.currentPeriod)) {
-      banner.hidden = true;
-      return;
-    }
-    const days = daysSincePeriodStart(data.currentPeriod);
-    const text = document.getElementById('overdue-text');
-    text.textContent = `It's been ${days} days since your last paycheck — time to start a new pay period?`;
-    banner.hidden = false;
   }
 
   function renderChart() {
@@ -1156,13 +1140,13 @@ import { firebaseConfig } from './firebase-config.js';
         render();
       }
     });
-    const newPeriodPrompt = () => confirmDelete(
-      'Start a new pay period?',
-      'This locks in the current period as history and starts a fresh one today. Categories carry over with $0 spent; anything marked 🔁 Recurring auto-copies in.',
-      startNewPeriod
-    );
-    document.getElementById('reset-month').addEventListener('click', newPeriodPrompt);
-    document.getElementById('overdue-action').addEventListener('click', newPeriodPrompt);
+    document.getElementById('reset-month').addEventListener('click', () => {
+      confirmDelete(
+        'Start a new pay period?',
+        'This locks in the current period as history and starts a fresh one today. Categories carry over with $0 spent; anything marked 🔁 Recurring auto-copies in.',
+        startNewPeriod
+      );
+    });
     document.getElementById('unlock-month').addEventListener('click', reactivatePeriod);
     document.getElementById('clear-month').addEventListener('click', () => {
       const label = periodLabel(activePeriod());
